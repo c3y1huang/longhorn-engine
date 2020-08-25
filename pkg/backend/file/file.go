@@ -9,26 +9,32 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/types"
 )
 
+// New returns new Factory
 func New() types.BackendFactory {
 	return &Factory{}
 }
 
+// Factory object
 type Factory struct {
 }
 
+// Wrapper object
 type Wrapper struct {
 	*os.File
 }
 
+// Close closes given file
 func (f *Wrapper) Close() error {
 	logrus.Infof("Closing: %s", f.Name())
 	return f.File.Close()
 }
 
+// Snapshot returns nil, not implemented
 func (f *Wrapper) Snapshot(name string, userCreated bool, created string, labels map[string]string) error {
 	return nil
 }
 
+// Expand uses Truncate to change the file size
 func (f *Wrapper) Expand(size int64) (err error) {
 	defer func() {
 		if err != nil {
@@ -59,6 +65,7 @@ func (f *Wrapper) Expand(size int64) (err error) {
 	return f.Truncate(size)
 }
 
+// Size returns the file size
 func (f *Wrapper) Size() (int64, error) {
 	stat, err := f.Stat()
 	if err != nil {
@@ -67,22 +74,27 @@ func (f *Wrapper) Size() (int64, error) {
 	return stat.Size(), nil
 }
 
+// SectorSize returns 4096
 func (f *Wrapper) SectorSize() (int64, error) {
 	return 4096, nil
 }
 
+// RemainSnapshots returns 1
 func (f *Wrapper) RemainSnapshots() (int, error) {
 	return 1, nil
 }
 
+// GetRevisionCounter returns 1
 func (f *Wrapper) GetRevisionCounter() (int64, error) {
 	return 1, nil
 }
 
+// SetRevisionCounter returns nil
 func (f *Wrapper) SetRevisionCounter(counter int64) error {
 	return nil
 }
 
+// Create opens file I/O for the given address
 func (ff *Factory) Create(address string) (types.Backend, error) {
 	logrus.Infof("Creating file: %s", address)
 	file, err := os.OpenFile(address, os.O_RDWR|os.O_CREATE, 0600)
@@ -94,13 +106,16 @@ func (ff *Factory) Create(address string) (types.Backend, error) {
 	return &Wrapper{file}, nil
 }
 
+// GetMonitorChannel returns nil
 func (f *Wrapper) GetMonitorChannel() types.MonitorChannel {
 	return nil
 }
 
+// PingResponse returns nil
 func (f *Wrapper) PingResponse() error {
 	return nil
 }
 
+// StopMonitoring returns nil
 func (f *Wrapper) StopMonitoring() {
 }

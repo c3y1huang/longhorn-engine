@@ -25,17 +25,21 @@ var (
 	requestBuffer = 1024
 )
 
+// New returns new Factory
 func New() types.BackendFactory {
 	return &Factory{}
 }
 
+// RevisionCounter object
 type RevisionCounter struct {
 	Counter int64 `json:"counter,string"`
 }
 
+// Factory object
 type Factory struct {
 }
 
+// Remote object
 type Remote struct {
 	types.ReaderWriterAt
 	name              string
@@ -44,6 +48,7 @@ type Remote struct {
 	monitorChan       types.MonitorChannel
 }
 
+// Close calls replica gRPC client for ReplicaClose method
 func (r *Remote) Close() error {
 	logrus.Infof("Closing: %s", r.name)
 	conn, err := grpc.Dial(r.replicaServiceURL, grpc.WithInsecure())
@@ -82,6 +87,7 @@ func (r *Remote) open() error {
 	return nil
 }
 
+// Snapshot calls replica gRPC client ReplicaSnapshot
 func (r *Remote) Snapshot(name string, userCreated bool, created string, labels map[string]string) error {
 	logrus.Infof("Snapshot: %s %s UserCreated %v Created at %v, Labels %v",
 		r.name, name, userCreated, created, labels)
@@ -107,6 +113,7 @@ func (r *Remote) Snapshot(name string, userCreated bool, created string, labels 
 	return nil
 }
 
+// Expand calls replica gRPC client ReplicaExpand
 func (r *Remote) Expand(size int64) (err error) {
 	logrus.Infof("Expand to size %v", size)
 	defer func() {
@@ -132,6 +139,7 @@ func (r *Remote) Expand(size int64) (err error) {
 	return nil
 }
 
+// SetRevisionCounter calls replica gRPC client RevisionCounterSet
 func (r *Remote) SetRevisionCounter(counter int64) error {
 	logrus.Infof("Set revision counter of %s to : %v", r.name, counter)
 
@@ -155,6 +163,7 @@ func (r *Remote) SetRevisionCounter(counter int64) error {
 
 }
 
+// Size returns replica size from replica gRPC server
 func (r *Remote) Size() (int64, error) {
 	replicaInfo, err := r.info()
 	if err != nil {
@@ -163,6 +172,8 @@ func (r *Remote) Size() (int64, error) {
 	return strconv.ParseInt(replicaInfo.Size, 10, 0)
 }
 
+// SectorSize returns replica sector size from replica
+// gRPC server
 func (r *Remote) SectorSize() (int64, error) {
 	replicaInfo, err := r.info()
 	if err != nil {
@@ -171,6 +182,8 @@ func (r *Remote) SectorSize() (int64, error) {
 	return replicaInfo.SectorSize, nil
 }
 
+// RemainSnapshots returns remain snapshot from replica
+// gRPC server
 func (r *Remote) RemainSnapshots() (int, error) {
 	replicaInfo, err := r.info()
 	if err != nil {
@@ -182,6 +195,8 @@ func (r *Remote) RemainSnapshots() (int, error) {
 	return replicaInfo.RemainSnapshots, nil
 }
 
+// GetRevisionCounter returns revision counter
+// from gRPC server
 func (r *Remote) GetRevisionCounter() (int64, error) {
 	replicaInfo, err := r.info()
 	if err != nil {
@@ -193,6 +208,8 @@ func (r *Remote) GetRevisionCounter() (int64, error) {
 	return replicaInfo.RevisionCounter, nil
 }
 
+// info calls replica gRPC client ReplicaGet and returns
+// a ReplicaInfo object
 func (r *Remote) info() (*types.ReplicaInfo, error) {
 	conn, err := grpc.Dial(r.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -212,6 +229,9 @@ func (r *Remote) info() (*types.ReplicaInfo, error) {
 	return replicaClient.GetReplicaInfo(resp.Replica), nil
 }
 
+// Create checks the replica.State from replica rGPC server and
+// monitors the given address connection with a inifinit ping
+// loop 
 func (rf *Factory) Create(address string) (types.Backend, error) {
 	logrus.Infof("Connecting to remote: %s", address)
 
@@ -255,6 +275,8 @@ func (rf *Factory) Create(address string) (types.Backend, error) {
 	return r, nil
 }
 
+// monitorPing starts an infinit loop that pings the given
+// client
 func (r *Remote) monitorPing(client *dataconn.Client) {
 	ticker := time.NewTicker(pingInveral)
 	defer ticker.Stop()
@@ -274,10 +296,12 @@ func (r *Remote) monitorPing(client *dataconn.Client) {
 	}
 }
 
+// GetMonitorChannel returns Remote.monitorChan
 func (r *Remote) GetMonitorChannel() types.MonitorChannel {
 	return r.monitorChan
 }
 
+// StopMonitoring sents close to Remote channel
 func (r *Remote) StopMonitoring() {
 	r.closeChan <- struct{}{}
 }
