@@ -25,6 +25,8 @@ type ReplicaClient struct {
 	syncAgentServiceURL string
 }
 
+// NewReplicaClient returns new ReplicaClient. syncAgentServiceURL has
+// replicaServiceURL with port + 2
 func NewReplicaClient(address string) (*ReplicaClient, error) {
 	if strings.HasPrefix(address, "tcp://") {
 		address = strings.TrimPrefix(address, "tcp://")
@@ -57,6 +59,7 @@ func NewReplicaClient(address string) (*ReplicaClient, error) {
 	}, nil
 }
 
+// GetDiskInfo returns DiskInfo
 func GetDiskInfo(info *ptypes.DiskInfo) *types.DiskInfo {
 	diskInfo := &types.DiskInfo{
 		Name:        info.Name,
@@ -76,6 +79,8 @@ func GetDiskInfo(info *ptypes.DiskInfo) *types.DiskInfo {
 	return diskInfo
 }
 
+// GetReplicaInfo returns a new types.ReplicaInfo for the given
+// Replica object
 func GetReplicaInfo(r *ptypes.Replica) *types.ReplicaInfo {
 	replicaInfo := &types.ReplicaInfo{
 		Dirty:           r.Dirty,
@@ -99,6 +104,8 @@ func GetReplicaInfo(r *ptypes.Replica) *types.ReplicaInfo {
 	return replicaInfo
 }
 
+// syncFileInfoListToSyncAgentGRPCFormat returns a list of SyncFileInfo for the
+// given list of SyncFileInfo
 func (c *ReplicaClient) syncFileInfoListToSyncAgentGRPCFormat(list []types.SyncFileInfo) []*ptypes.SyncFileInfo {
 	res := []*ptypes.SyncFileInfo{}
 	for _, info := range list {
@@ -107,6 +114,7 @@ func (c *ReplicaClient) syncFileInfoListToSyncAgentGRPCFormat(list []types.SyncF
 	return res
 }
 
+// syncFileInfoToSyncAgentGRPCFormat returns SyncFileInfo
 func (c *ReplicaClient) syncFileInfoToSyncAgentGRPCFormat(info types.SyncFileInfo) *ptypes.SyncFileInfo {
 	return &ptypes.SyncFileInfo{
 		FromFileName: info.FromFileName,
@@ -115,6 +123,7 @@ func (c *ReplicaClient) syncFileInfoToSyncAgentGRPCFormat(info types.SyncFileInf
 	}
 }
 
+// GetReplica get replica info with gRPC client
 func (c *ReplicaClient) GetReplica() (*types.ReplicaInfo, error) {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -134,6 +143,7 @@ func (c *ReplicaClient) GetReplica() (*types.ReplicaInfo, error) {
 	return GetReplicaInfo(resp.Replica), nil
 }
 
+// OpenReplica opens replica with gRPC client
 func (c *ReplicaClient) OpenReplica() error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -152,6 +162,7 @@ func (c *ReplicaClient) OpenReplica() error {
 	return nil
 }
 
+// Close replica with gRPC client
 func (c *ReplicaClient) Close() error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -170,6 +181,7 @@ func (c *ReplicaClient) Close() error {
 	return nil
 }
 
+// ReloadReplica reloads replica with gRPC client and returns replica info
 func (c *ReplicaClient) ReloadReplica() (*types.ReplicaInfo, error) {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -189,6 +201,7 @@ func (c *ReplicaClient) ReloadReplica() (*types.ReplicaInfo, error) {
 	return GetReplicaInfo(resp.Replica), nil
 }
 
+// ExpandReplica expands replica with gRPC client and return replica info
 func (c *ReplicaClient) ExpandReplica(size int64) (r *types.ReplicaInfo, err error) {
 	defer func() {
 		err = types.WrapError(err, "failed to expand replica %v", c.replicaServiceURL)
@@ -214,6 +227,7 @@ func (c *ReplicaClient) ExpandReplica(size int64) (r *types.ReplicaInfo, err err
 	return GetReplicaInfo(resp.Replica), nil
 }
 
+// Revert relica with gRPC client
 func (c *ReplicaClient) Revert(name, created string) error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -235,6 +249,7 @@ func (c *ReplicaClient) Revert(name, created string) error {
 	return nil
 }
 
+// RemoveDisk removes replica disk with gRPC client
 func (c *ReplicaClient) RemoveDisk(disk string, force bool) error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -256,6 +271,7 @@ func (c *ReplicaClient) RemoveDisk(disk string, force bool) error {
 	return nil
 }
 
+// ReplaceDisk replace replica disk with gRPC client
 func (c *ReplicaClient) ReplaceDisk(target, source string) error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -277,6 +293,7 @@ func (c *ReplicaClient) ReplaceDisk(target, source string) error {
 	return nil
 }
 
+// PrepareRemoveDisk prepare to remove replica disk with gRPC client
 func (c *ReplicaClient) PrepareRemoveDisk(disk string) ([]*types.PrepareRemoveAction, error) {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -308,6 +325,7 @@ func (c *ReplicaClient) PrepareRemoveDisk(disk string) ([]*types.PrepareRemoveAc
 	return operations, nil
 }
 
+// MarkDiskAsRemoved marks the replica disk as removed with gRPC client
 func (c *ReplicaClient) MarkDiskAsRemoved(disk string) error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -328,6 +346,7 @@ func (c *ReplicaClient) MarkDiskAsRemoved(disk string) error {
 	return nil
 }
 
+// SetRebuilding set replica rebuilding with gRPC client
 func (c *ReplicaClient) SetRebuilding(rebuilding bool) error {
 	conn, err := grpc.Dial(c.replicaServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -348,6 +367,7 @@ func (c *ReplicaClient) SetRebuilding(rebuilding bool) error {
 	return nil
 }
 
+// RemoveFile removes file with gRPC client
 func (c *ReplicaClient) RemoveFile(file string) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -368,6 +388,7 @@ func (c *ReplicaClient) RemoveFile(file string) error {
 	return nil
 }
 
+// RenameFile rename file with gRPC client
 func (c *ReplicaClient) RenameFile(oldFileName, newFileName string) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -389,6 +410,7 @@ func (c *ReplicaClient) RenameFile(oldFileName, newFileName string) error {
 	return nil
 }
 
+// SendFile sends file with gRPC client
 func (c *ReplicaClient) SendFile(from, host string, port int32) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -411,6 +433,7 @@ func (c *ReplicaClient) SendFile(from, host string, port int32) error {
 	return nil
 }
 
+// LaunchReceiver launch file receiver with gRPC client
 func (c *ReplicaClient) LaunchReceiver(toFilePath string) (string, int32, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -432,6 +455,7 @@ func (c *ReplicaClient) LaunchReceiver(toFilePath string) (string, int32, error)
 	return c.host, reply.Port, nil
 }
 
+// SyncFiles sync files with gRPC client
 func (c *ReplicaClient) SyncFiles(fromAddress string, list []types.SyncFileInfo) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -454,6 +478,7 @@ func (c *ReplicaClient) SyncFiles(fromAddress string, list []types.SyncFileInfo)
 	return nil
 }
 
+// CreateBackup creates backup with gRPC client
 func (c *ReplicaClient) CreateBackup(snapshot, dest, volume string, labels []string, credential map[string]string) (*ptypes.BackupCreateResponse, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -479,6 +504,7 @@ func (c *ReplicaClient) CreateBackup(snapshot, dest, volume string, labels []str
 	return resp, nil
 }
 
+// BackupStatus gets backup status with gRPC client
 func (c *ReplicaClient) BackupStatus(backupName string) (*ptypes.BackupStatusResponse, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -501,6 +527,7 @@ func (c *ReplicaClient) BackupStatus(backupName string) (*ptypes.BackupStatusRes
 	return resp, nil
 }
 
+// RmBackup removes backup with gRPC client
 func (c *ReplicaClient) RmBackup(backup string) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -521,6 +548,7 @@ func (c *ReplicaClient) RmBackup(backup string) error {
 	return nil
 }
 
+// RestoreBackup restores backup with gRPC client
 func (c *ReplicaClient) RestoreBackup(backup, snapshotDiskName string, credential map[string]string) error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -543,6 +571,7 @@ func (c *ReplicaClient) RestoreBackup(backup, snapshotDiskName string, credentia
 	return nil
 }
 
+// Reset cleanup resotre info with gRPC client
 func (c *ReplicaClient) Reset() error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -561,6 +590,7 @@ func (c *ReplicaClient) Reset() error {
 	return nil
 }
 
+// RestoreStatus gets restore status with gRPC client
 func (c *ReplicaClient) RestoreStatus() (*ptypes.RestoreStatusResponse, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -580,6 +610,7 @@ func (c *ReplicaClient) RestoreStatus() (*ptypes.RestoreStatusResponse, error) {
 	return resp, nil
 }
 
+// SnapshotPurge purges the snapshot with gRPC client
 func (c *ReplicaClient) SnapshotPurge() error {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -598,6 +629,7 @@ func (c *ReplicaClient) SnapshotPurge() error {
 	return nil
 }
 
+// SnapshotPurgeStatus gets snapshot purge status with gRPC client
 func (c *ReplicaClient) SnapshotPurgeStatus() (*ptypes.SnapshotPurgeStatusResponse, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {
@@ -617,6 +649,7 @@ func (c *ReplicaClient) SnapshotPurgeStatus() (*ptypes.SnapshotPurgeStatusRespon
 	return status, nil
 }
 
+// ReplicaRebuildStatus gets replica rebuild status with gRPC client
 func (c *ReplicaClient) ReplicaRebuildStatus() (*ptypes.ReplicaRebuildStatusResponse, error) {
 	conn, err := grpc.Dial(c.syncAgentServiceURL, grpc.WithInsecure())
 	if err != nil {

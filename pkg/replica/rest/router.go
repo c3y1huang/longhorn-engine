@@ -11,6 +11,7 @@ import (
 	_ "net/http/pprof"
 )
 
+// HandleError response to error
 func HandleError(s *client.Schemas, t func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return api.ApiHandler(s, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if err := t(rw, req); err != nil {
@@ -20,6 +21,7 @@ func HandleError(s *client.Schemas, t func(http.ResponseWriter, *http.Request) e
 	}))
 }
 
+// checkAction response with error if action is empty
 func checkAction(s *Server, t func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
 	return func(rw http.ResponseWriter, req *http.Request) error {
 		replica := s.Replica(api.GetApiContext(req))
@@ -31,6 +33,7 @@ func checkAction(s *Server, t func(http.ResponseWriter, *http.Request) error) fu
 	}
 }
 
+// NewReouter registers path to the methods
 func NewRouter(s *Server) *mux.Router {
 	schemas := NewSchema()
 	router := mux.NewRouter().StrictSlash(true)

@@ -18,6 +18,7 @@ const (
 	revisionBlockSize               = 4096
 )
 
+// readRevisionCounter returns content from revision counter file
 func (r *Replica) readRevisionCounter() (int64, error) {
 	if r.revisionFile == nil {
 		return 0, fmt.Errorf("BUG: revision file wasn't initialized")
@@ -35,6 +36,7 @@ func (r *Replica) readRevisionCounter() (int64, error) {
 	return counter, nil
 }
 
+// writeRevisionCounter writes the counter to the revision counter fd
 func (r *Replica) writeRevisionCounter(counter int64) error {
 	if r.revisionFile == nil {
 		return fmt.Errorf("BUG: revision file wasn't initialized")
@@ -49,12 +51,16 @@ func (r *Replica) writeRevisionCounter(counter int64) error {
 	return nil
 }
 
+// openRevisionFile opens revision file direct IO descriptor
 func (r *Replica) openRevisionFile(isCreate bool) error {
 	var err error
 	r.revisionFile, err = sparse.NewDirectFileIoProcessor(r.diskPath(revisionCounterFile), os.O_RDWR, revisionFileMode, isCreate)
 	return err
 }
 
+// initRevisionCounter opens the revision counter fd and update to Replica
+// revisionCache. This also writes the revision counter file if not already
+// exist
 func (r *Replica) initRevisionCounter() error {
 	if r.readOnly {
 		return nil
@@ -90,6 +96,8 @@ func (r *Replica) initRevisionCounter() error {
 	return nil
 }
 
+// GetRevisionCounter updates the Replica.revisionCache and returns
+// revisionCounter
 func (r *Replica) GetRevisionCounter() int64 {
 	r.revisionLock.Lock()
 	defer r.revisionLock.Unlock()
@@ -104,6 +112,8 @@ func (r *Replica) GetRevisionCounter() int64 {
 	return counter
 }
 
+// SetRevisionCounter writes the reivsion counter to fd and update to
+// revisionCache
 func (r *Replica) SetRevisionCounter(counter int64) error {
 	r.revisionLock.Lock()
 	defer r.revisionLock.Unlock()
@@ -116,6 +126,8 @@ func (r *Replica) SetRevisionCounter(counter int64) error {
 	return nil
 }
 
+// increaseRevisionCounter reads the revison counter, update to revisionCache
+// , writes to revision counter fd and increment revisionCache
 func (r *Replica) increaseRevisionCounter() error {
 	r.revisionLock.Lock()
 	defer r.revisionLock.Unlock()

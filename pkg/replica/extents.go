@@ -6,12 +6,14 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/types"
 )
 
+// UsedGenerator object
 type UsedGenerator struct {
 	err  error
 	disk types.DiffDisk
 	d    *diffDisk
 }
 
+// newGenerator returns new UsedGenerator
 func newGenerator(diffDisk *diffDisk, disk types.DiffDisk) *UsedGenerator {
 	return &UsedGenerator{
 		disk: disk,
@@ -19,16 +21,19 @@ func newGenerator(diffDisk *diffDisk, disk types.DiffDisk) *UsedGenerator {
 	}
 }
 
+// Err returns UsedGenerator.err
 func (u *UsedGenerator) Err() error {
 	return u.err
 }
 
+// Generate starts go routine to capture the extent index
 func (u *UsedGenerator) Generate() <-chan int64 {
 	c := make(chan int64)
 	go u.findExtents(c)
 	return c
 }
 
+// findExtents sends the extent index to channel
 func (u *UsedGenerator) findExtents(c chan<- int64) {
 	defer close(c)
 

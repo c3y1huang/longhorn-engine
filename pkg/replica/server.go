@@ -9,16 +9,24 @@ import (
 )
 
 const (
+	// Initial state initial
 	Initial    = State("initial")
+	// Open state open
 	Open       = State("open")
+	// Closed state closed
 	Closed     = State("closed")
+	// Dirty state dirty
 	Dirty      = State("dirty")
+	// Rebuilding state rebuilding
 	Rebuilding = State("rebuilding")
+	// Error state error
 	Error      = State("error")
 )
 
+// State type
 type State string
 
+// Server object
 type Server struct {
 	sync.RWMutex
 	r                 *Replica
@@ -27,6 +35,7 @@ type Server struct {
 	backing           *BackingFile
 }
 
+// NewServer returns new Server
 func NewServer(dir string, backing *BackingFile, sectorSize int64) *Server {
 	return &Server{
 		dir:               dir,
@@ -35,6 +44,8 @@ func NewServer(dir string, backing *BackingFile, sectorSize int64) *Server {
 	}
 }
 
+// getSectorSize returns the existing backing.SectorSize if Server.backing is
+// not nil and SectorSize is greater than 0, or returns the defaultSector size
 func (s *Server) getSectorSize() int64 {
 	if s.backing != nil && s.backing.SectorSize > 0 {
 		return s.backing.SectorSize
@@ -42,6 +53,8 @@ func (s *Server) getSectorSize() int64 {
 	return s.defaultSectorSize
 }
 
+// getSize returns the existing backing size if Server.backing is not nil and
+// Size is greater than 0, or returns the given size
 func (s *Server) getSize(size int64) int64 {
 	if s.backing != nil && s.backing.Size > 0 {
 		return s.backing.Size
@@ -49,6 +62,7 @@ func (s *Server) getSize(size int64) int64 {
 	return size
 }
 
+// Create new repliac with no head for the given size
 func (s *Server) Create(size int64) error {
 	s.Lock()
 	defer s.Unlock()
@@ -70,6 +84,7 @@ func (s *Server) Create(size int64) error {
 	return r.Close()
 }
 
+// Open creates new replica with no head for the exiting size
 func (s *Server) Open() error {
 	s.Lock()
 	defer s.Unlock()
@@ -91,6 +106,7 @@ func (s *Server) Open() error {
 	return nil
 }
 
+// Reload create new replica with no head and close existing replica fd
 func (s *Server) Reload() error {
 	s.Lock()
 	defer s.Unlock()
@@ -111,6 +127,7 @@ func (s *Server) Reload() error {
 	return nil
 }
 
+// Status returns replica status
 func (s *Server) Status() (State, Info) {
 	if s.r == nil {
 		info, err := ReadInfo(s.dir)
@@ -134,6 +151,10 @@ func (s *Server) Status() (State, Info) {
 	}
 }
 
+// SetRebuilding updates the given boolean to volume.meta and
+// Server.Replica.info. This returns error when:
+// * it needs rebuild but server state not open or not dirty
+// * it does not need rebuild but server is already rebuilding
 func (s *Server) SetRebuilding(rebuilding bool) error {
 	s.Lock()
 	defer s.Unlock()
@@ -148,10 +169,12 @@ func (s *Server) SetRebuilding(rebuilding bool) error {
 	return s.r.SetRebuilding(rebuilding)
 }
 
+// Replica returns Server.Replica object
 func (s *Server) Replica() *Replica {
 	return s.r
 }
 
+// Revert to the given disk name
 func (s *Server) Revert(name, created string) error {
 	s.Lock()
 	defer s.Unlock()
@@ -170,6 +193,7 @@ func (s *Server) Revert(name, created string) error {
 	return nil
 }
 
+// Snapshot creates the snapshot and meta hardlinked to the head
 func (s *Server) Snapshot(name string, userCreated bool, createdTime string, labels map[string]string) error {
 	s.Lock()
 	defer s.Unlock()
@@ -183,6 +207,8 @@ func (s *Server) Snapshot(name string, userCreated bool, createdTime string, lab
 	return s.r.Snapshot(name, userCreated, createdTime, labels)
 }
 
+// Expand creates expand disk, appends block index to location and update
+// the size
 func (s *Server) Expand(size int64) error {
 	s.Lock()
 	defer s.Unlock()
@@ -196,6 +222,8 @@ func (s *Server) Expand(size int64) error {
 	return s.r.Expand(size)
 }
 
+// RemoveDiffDisk removes the disk from the chain and its host files for the
+// given name
 func (s *Server) RemoveDiffDisk(name string, force bool) error {
 	s.Lock()
 	defer s.Unlock()
@@ -208,6 +236,7 @@ func (s *Server) RemoveDiffDisk(name string, force bool) error {
 	return s.r.RemoveDiffDisk(name, force)
 }
 
+// ReplaceDisk links source to target and remove source
 func (s *Server) ReplaceDisk(target, source string) error {
 	s.Lock()
 	defer s.Unlock()
@@ -220,6 +249,7 @@ func (s *Server) ReplaceDisk(target, source string) error {
 	return s.r.ReplaceDisk(target, source)
 }
 
+// MarkDiskAsRemoved update disk.Remove to true for the given name
 func (s *Server) MarkDiskAsRemoved(name string) error {
 	s.Lock()
 	defer s.Unlock()
@@ -232,6 +262,8 @@ func (s *Server) MarkDiskAsRemoved(name string) error {
 	return s.r.MarkDiskAsRemoved(name)
 }
 
+// PrepareRemoveDisk ensures the given name is not the head disk and returns
+// the PrepareRemoveAction
 func (s *Server) PrepareRemoveDisk(name string) ([]PrepareRemoveAction, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -244,6 +276,7 @@ func (s *Server) PrepareRemoveDisk(name string) ([]PrepareRemoveAction, error) {
 	return s.r.PrepareRemoveDisk(name)
 }
 
+// Delete closes all fd except the head and removes all host files
 func (s *Server) Delete() error {
 	s.Lock()
 	defer s.Unlock()
@@ -262,6 +295,7 @@ func (s *Server) Delete() error {
 	return err
 }
 
+// Close all fd except the head and set Server.Replica to nil
 func (s *Server) Close() error {
 	s.Lock()
 	defer s.Unlock()
@@ -279,6 +313,7 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// WriteAt writes the data at offset and increase revision counter
 func (s *Server) WriteAt(buf []byte, offset int64) (int, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -290,6 +325,7 @@ func (s *Server) WriteAt(buf []byte, offset int64) (int, error) {
 	return i, err
 }
 
+// ReadAt returns the length of byte array
 func (s *Server) ReadAt(buf []byte, offset int64) (int, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -301,6 +337,8 @@ func (s *Server) ReadAt(buf []byte, offset int64) (int, error) {
 	return i, err
 }
 
+// SetRevisionCounter writes revision counter to fd and update the Server
+// revisionCache
 func (s *Server) SetRevisionCounter(counter int64) error {
 	s.Lock()
 	defer s.Unlock()
@@ -311,6 +349,7 @@ func (s *Server) SetRevisionCounter(counter int64) error {
 	return s.r.SetRevisionCounter(counter)
 }
 
+// PingResponse returns errro if state not match condition
 func (s *Server) PingResponse() error {
 	state, info := s.Status()
 	if state == Error {

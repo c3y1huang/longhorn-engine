@@ -35,6 +35,7 @@ const (
 	diskPrefix         = "volume-snap-"
 	diskSuffix         = ".img"
 	diskName           = diskPrefix + "%s" + diskSuffix
+	// maximumChainLength is the maximum snapshot chain allowed
 	maximumChainLength = 250
 	deltaPrefix        = "volume-delta-"
 	deltaSuffix        = ".img"
@@ -51,6 +52,7 @@ var (
 	diskPattern = regexp.MustCompile(`volume-head-(\d)+.img`)
 )
 
+// Replica object
 type Replica struct {
 	sync.RWMutex
 	volume          diffDisk
@@ -69,6 +71,7 @@ type Replica struct {
 	revisionRefreshed bool
 }
 
+// Info object
 type Info struct {
 	Size            int64
 	Head            string
@@ -90,6 +93,7 @@ type disk struct {
 	Labels      map[string]string
 }
 
+// BackingFile object
 type BackingFile struct {
 	Size       int64
 	SectorSize int64
@@ -97,12 +101,14 @@ type BackingFile struct {
 	Disk       types.DiffDisk
 }
 
+// PrepareRemoveAction object
 type PrepareRemoveAction struct {
 	Action string `json:"action"`
 	Source string `json:"source"`
 	Target string `json:"target"`
 }
 
+// DiskInfo object
 type DiskInfo struct {
 	Name        string            `json:"name"`
 	Parent      string            `json:"parent"`
@@ -115,26 +121,34 @@ type DiskInfo struct {
 }
 
 const (
+	// OpCoalesce consolidate the parent and child
 	OpCoalesce = "coalesce" // Source is parent, target is child
+	// OpRemove is the remove operation
 	OpRemove   = "remove"
+	// OpReplace is the replace operation
 	OpReplace  = "replace"
 )
 
+// ReadInfo reads from volume.meta and returns in Info object
 func ReadInfo(dir string) (Info, error) {
 	var info Info
 	err := (&Replica{dir: dir}).unmarshalFile(volumeMetaData, &info)
 	return info, err
 }
 
+// New construct new replica with no head
 func New(size, sectorSize int64, dir string, backingFile *BackingFile) (*Replica, error) {
 	return construct(false, size, sectorSize, dir, "", backingFile)
 }
 
+
+// NewReadOnly construct new readonly replica with the given head
 func NewReadOnly(dir, head string, backingFile *BackingFile) (*Replica, error) {
 	// size and sectorSize don't matter because they will be read from metadata
 	return construct(true, 0, 512, dir, head, backingFile)
 }
 
+// construct populates the Replica object and creates a volume.meta
 func construct(readonly bool, size, sectorSize int64, dir, head string, backingFile *BackingFile) (*Replica, error) {
 	if size%sectorSize != 0 {
 		return nil, fmt.Errorf("Size %d not a multiple of sector size %d", size, sectorSize)
@@ -210,18 +224,24 @@ func construct(readonly bool, size, sectorSize int64, dir, head string, backingF
 	return r, r.writeVolumeMetaData(true, r.info.Rebuilding)
 }
 
+// GenerateSnapshotDiskName returns volume-snap-%s.img for the given name
 func GenerateSnapshotDiskName(name string) string {
 	return fmt.Sprintf(diskName, name)
 }
 
+// GenerateSnapshotDiskMetaName returns volume-snap-%s.img,meta for the
+// given name
 func GenerateSnapshotDiskMetaName(diskName string) string {
 	return diskName + metadataSuffix
 }
 
+// GenerateSnapTempFileName adds .snap_tmp for the given file name
 func GenerateSnapTempFileName(fileName string) string {
 	return fileName + snapTmpSuffix
 }
 
+// GetSnapshotNameFromTempFileName trims the .snap_tmp for the given file
+// name and returns error if the given file does not contain suffix
 func GetSnapshotNameFromTempFileName(tmpFileName string) (string, error) {
 	if !strings.HasSuffix(tmpFileName, snapTmpSuffix) {
 		return "", fmt.Errorf("invalid snapshot tmp filename")
@@ -229,6 +249,9 @@ func GetSnapshotNameFromTempFileName(tmpFileName string) (string, error) {
 	return strings.TrimSuffix(tmpFileName, snapTmpSuffix), nil
 }
 
+// GetSnapshotNameFromDiskName trims the volume-snap- and .img for the given
+// name. Returns error if the given file name not contain either the prefix
+// or suffix
 func GetSnapshotNameFromDiskName(diskName string) (string, error) {
 	if !strings.HasPrefix(diskName, diskPrefix) || !strings.HasSuffix(diskName, diskSuffix) {
 		return "", fmt.Errorf("invalid snapshot disk name %v", diskName)
@@ -238,20 +261,25 @@ func GetSnapshotNameFromDiskName(diskName string) (string, error) {
 	return result, nil
 }
 
+// GenerateDeltaFileName returns volume-delta-%s.img for the given name
 func GenerateDeltaFileName(name string) string {
 	return fmt.Sprintf(deltaName, name)
 }
 
+// GenerateExpansionSnapshotName returns expand-%d for the given size
 func GenerateExpansionSnapshotName(size int64) string {
 	return fmt.Sprintf(expansionSnapshotInfix, size)
 }
 
+// GenerateExpansionSnapshotLabels returns object maps the given size to
+// "replica-expansion"
 func GenerateExpansionSnapshotLabels(size int64) map[string]string {
 	return map[string]string{
 		replicaExpansionLabelKey: strconv.FormatInt(size, 10),
 	}
 }
 
+// IsHeadDisk returns true if the given name pattern is volume-head-%s.img
 func IsHeadDisk(diskName string) bool {
 	if strings.HasPrefix(diskName, headPrefix) && strings.HasSuffix(diskName, headSuffix) {
 		return true
@@ -259,6 +287,7 @@ func IsHeadDisk(diskName string) bool {
 	return false
 }
 
+// diskPath returns path for the given name
 func (r *Replica) diskPath(name string) string {
 	if filepath.IsAbs(name) {
 		return name
@@ -266,6 +295,8 @@ func (r *Replica) diskPath(name string) string {
 	return path.Join(r.dir, name)
 }
 
+// isExtentSupported opens disk head meta fd and calls FIEMAP ioctl and returns
+// error if unable to get the extent mappings.
 func (r *Replica) isExtentSupported() error {
 	filePath := r.diskPath(r.info.Head + metadataSuffix)
 	fileInfo, err := os.Stat(filePath)
@@ -286,6 +317,8 @@ func (r *Replica) isExtentSupported() error {
 	}
 	return nil
 }
+
+// insertBackingFile inserts backing file to active disk data and volume file
 func (r *Replica) insertBackingFile() {
 	if r.info.BackingFile == nil {
 		return
@@ -297,6 +330,7 @@ func (r *Replica) insertBackingFile() {
 	r.diskData[d.Name] = &d
 }
 
+// SetRebuilding update the volume.meta and update the Replica.info.Rebuilding
 func (r *Replica) SetRebuilding(rebuilding bool) error {
 	err := r.writeVolumeMetaData(true, rebuilding)
 	if err != nil {
@@ -306,6 +340,7 @@ func (r *Replica) SetRebuilding(rebuilding bool) error {
 	return nil
 }
 
+// Reload returns new replica with no head
 func (r *Replica) Reload() (*Replica, error) {
 	newReplica, err := New(r.info.Size, r.info.SectorSize, r.dir, r.info.BackingFile)
 	if err != nil {
@@ -315,6 +350,7 @@ func (r *Replica) Reload() (*Replica, error) {
 	return newReplica, nil
 }
 
+// findDisk returns the index number for the given name
 func (r *Replica) findDisk(name string) int {
 	for i, d := range r.activeDiskData {
 		if i == 0 {
@@ -327,6 +363,7 @@ func (r *Replica) findDisk(name string) int {
 	return 0
 }
 
+// RemoveDiffDisk remove disk from the chain and the host files
 func (r *Replica) RemoveDiffDisk(name string, force bool) error {
 	r.Lock()
 	defer r.Unlock()
@@ -346,6 +383,7 @@ func (r *Replica) RemoveDiffDisk(name string, force bool) error {
 	return nil
 }
 
+// MarkDiskAsRemoved updates disk.Remove to true
 func (r *Replica) MarkDiskAsRemoved(name string) error {
 	r.Lock()
 	defer r.Unlock()
@@ -373,6 +411,8 @@ func (r *Replica) MarkDiskAsRemoved(name string) error {
 	return nil
 }
 
+// hardlinkDisk hard link source to target path. This will remove the target
+// if already exist
 func (r *Replica) hardlinkDisk(target, source string) error {
 	if _, err := os.Stat(r.diskPath(source)); err != nil {
 		return fmt.Errorf("Cannot find source of replacing: %v", source)
@@ -391,6 +431,8 @@ func (r *Replica) hardlinkDisk(target, source string) error {
 	return nil
 }
 
+// ReplaceDisk links target to the source disk and remove the source disk data
+// and files. Reopen the fd of the target
 func (r *Replica) ReplaceDisk(target, source string) error {
 	r.Lock()
 	defer r.Unlock()
@@ -430,7 +472,8 @@ func (r *Replica) ReplaceDisk(target, source string) error {
 	return nil
 }
 
-// removeDiskNode with force = true should be only used when preparing rebuild,
+// removeDiskNode removes the given name from the chain
+// with force = true should be only used when preparing rebuild,
 // since the live chain needs to be overwritten
 func (r *Replica) removeDiskNode(name string, force bool) error {
 	// If snapshot has no child, then we can safely delete it
@@ -479,6 +522,8 @@ func (r *Replica) removeDiskNode(name string, force bool) error {
 	return nil
 }
 
+// PrepareRemoveDisk ensures disk is not the head and marked to be removed, and
+// returns the PrepareRemoveAction
 func (r *Replica) PrepareRemoveDisk(name string) ([]PrepareRemoveAction, error) {
 	r.Lock()
 	defer r.Unlock()
@@ -510,6 +555,9 @@ func (r *Replica) PrepareRemoveDisk(name string) ([]PrepareRemoveAction, error) 
 	return actions, nil
 }
 
+// processPrepareRemoveDisks returns the PrepareRemoveAction. Proceed with
+// remove if there is no child to the disk, proceed to replace if there is
+// only one child to the disk
 func (r *Replica) processPrepareRemoveDisks(disk string) ([]PrepareRemoveAction, error) {
 	actions := []PrepareRemoveAction{}
 
@@ -553,10 +601,12 @@ func (r *Replica) processPrepareRemoveDisks(disk string) ([]PrepareRemoveAction,
 	return actions, nil
 }
 
+// Info returns the Replica.info
 func (r *Replica) Info() Info {
 	return r.info
 }
 
+// DisplayChain returns all result snapshot chains
 func (r *Replica) DisplayChain() ([]string, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -578,6 +628,8 @@ func (r *Replica) DisplayChain() ([]string, error) {
 	return result, nil
 }
 
+// Chain returns an object maps the diskdata to the parent starting with the
+// head
 func (r *Replica) Chain() ([]string, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -596,6 +648,7 @@ func (r *Replica) Chain() ([]string, error) {
 	return result, nil
 }
 
+// writeVolumeMetaData creates volume.meta
 func (r *Replica) writeVolumeMetaData(dirty, rebuilding bool) error {
 	info := r.info
 	info.Dirty = dirty
@@ -603,6 +656,8 @@ func (r *Replica) writeVolumeMetaData(dirty, rebuilding bool) error {
 	return r.encodeToFile(&info, volumeMetaData)
 }
 
+// isBackingFile returns true if Replica.info.BackingFile exist and is the
+// first index
 func (r *Replica) isBackingFile(index int) bool {
 	if r.info.BackingFile == nil {
 		return false
@@ -610,6 +665,7 @@ func (r *Replica) isBackingFile(index int) bool {
 	return index == 1
 }
 
+// close all files stream except the first in index and update the volume.meta
 func (r *Replica) close() error {
 	for i, f := range r.volume.files {
 		if f != nil && !r.isBackingFile(i) {
@@ -620,6 +676,8 @@ func (r *Replica) close() error {
 	return r.writeVolumeMetaData(false, r.info.Rebuilding)
 }
 
+// encodeToFile creates a .tmp for the given file and writes JSON object to it 
+// and replace the original file
 func (r *Replica) encodeToFile(obj interface{}, file string) (err error) {
 	if r.readOnly {
 		return nil
@@ -656,6 +714,8 @@ func (r *Replica) encodeToFile(obj interface{}, file string) (err error) {
 	return os.Rename(r.diskPath(tmpFileName), r.diskPath(file))
 }
 
+// nextFile add 1 to the pattern if parent exist in pattern. When parent is not
+// provided indicates this is the first index and will start at 0
 func (r *Replica) nextFile(parsePattern *regexp.Regexp, pattern, parent string) (string, error) {
 	if parent == "" {
 		return fmt.Sprintf(pattern, 0), nil
@@ -670,10 +730,12 @@ func (r *Replica) nextFile(parsePattern *regexp.Regexp, pattern, parent string) 
 	return fmt.Sprintf(pattern, index+1), nil
 }
 
+// openFile opens direct IO file descriptor
 func (r *Replica) openFile(name string, flag int) (types.DiffDisk, error) {
 	return sparse.NewDirectFileIoProcessor(r.diskPath(name), os.O_RDWR|flag, 06666, true)
 }
 
+// createNewHead truncate new disk and create its .meta
 func (r *Replica) createNewHead(oldHead, parent, created string, size int64) (f types.DiffDisk, newDisk disk, err error) {
 	newHeadName, err := r.nextFile(diskPattern, headName, oldHead)
 	if err != nil {
@@ -720,6 +782,7 @@ func (r *Replica) createNewHead(oldHead, parent, created string, size int64) (f 
 	return f, newDisk, err
 }
 
+// linkDisk creates hardlink new path to the old path
 func (r *Replica) linkDisk(oldname, newname string) error {
 	if oldname == "" {
 		return nil
@@ -740,6 +803,7 @@ func (r *Replica) linkDisk(oldname, newname string) error {
 	return os.Link(r.diskPath(oldname+metadataSuffix), r.diskPath(newname+metadataSuffix))
 }
 
+// markDiskAsRemoved update disk.Remove to true if the path and meta exist.
 func (r *Replica) markDiskAsRemoved(name string) error {
 	disk, ok := r.diskData[name]
 	if !ok {
@@ -756,6 +820,7 @@ func (r *Replica) markDiskAsRemoved(name string) error {
 	return r.encodeToFile(disk, name+metadataSuffix)
 }
 
+// rmDisk delete the file and its .meta for the given name
 func (r *Replica) rmDisk(name string) error {
 	if name == "" {
 		return nil
@@ -768,6 +833,7 @@ func (r *Replica) rmDisk(name string) error {
 	return lastErr
 }
 
+// revertDisk reverts to the parent disk
 func (r *Replica) revertDisk(parent, created string) (*Replica, error) {
 	if _, err := os.Stat(r.diskPath(parent)); err != nil {
 		return nil, err
@@ -800,6 +866,8 @@ func (r *Replica) revertDisk(parent, created string) (*Replica, error) {
 	return rNew, nil
 }
 
+// createDisk create new snapshot disk and hardlink to the old head and update
+// the child disk
 func (r *Replica) createDisk(name string, userCreated bool, created string, labels map[string]string, size int64) (err error) {
 	if r.readOnly {
 		return fmt.Errorf("Can not create disk on read-only replica")
@@ -878,6 +946,7 @@ func (r *Replica) createDisk(name string, userCreated bool, created string, labe
 	return nil
 }
 
+// addChildDisk populate a child to parent
 func (r *Replica) addChildDisk(parent, child string) {
 	children, exists := r.diskChildrenMap[parent]
 	if !exists {
@@ -887,6 +956,7 @@ func (r *Replica) addChildDisk(parent, child string) {
 	r.diskChildrenMap[parent] = children
 }
 
+// rmChildDisk removes the given child from parent
 func (r *Replica) rmChildDisk(parent, child string) {
 	children, exists := r.diskChildrenMap[parent]
 	if !exists {
@@ -903,6 +973,8 @@ func (r *Replica) rmChildDisk(parent, child string) {
 	r.diskChildrenMap[parent] = children
 }
 
+// updateChildDisk remove the old name from parent and add new child if newName
+// is provided
 func (r *Replica) updateChildDisk(oldName, newName string) {
 	parent := r.diskData[oldName].Parent
 	r.rmChildDisk(parent, oldName)
@@ -911,6 +983,7 @@ func (r *Replica) updateChildDisk(oldName, newName string) {
 	}
 }
 
+// updateParentDisk updates the Parent in .meta for the given name
 func (r *Replica) updateParentDisk(name, oldParent string) error {
 	child := r.diskData[name]
 	if oldParent != "" {
@@ -922,6 +995,7 @@ func (r *Replica) updateParentDisk(name, oldParent string) error {
 	return r.encodeToFile(child, child.Name+metadataSuffix)
 }
 
+// openLiveChains append files and disk data from chain
 func (r *Replica) openLiveChain() error {
 	chain, err := r.Chain()
 	if err != nil {
@@ -946,6 +1020,7 @@ func (r *Replica) openLiveChain() error {
 	return nil
 }
 
+// readMetadata of the volume.meta and file with suffix .meta
 func (r *Replica) readMetadata() (bool, error) {
 	r.diskData = make(map[string]*disk)
 
@@ -974,6 +1049,7 @@ func (r *Replica) readMetadata() (bool, error) {
 	return len(r.diskData) > 0, nil
 }
 
+// readDiskData reads the .meta file and populate child to Replica object
 func (r *Replica) readDiskData(file string) error {
 	var data disk
 	if err := r.unmarshalFile(file, &data); err != nil {
@@ -989,6 +1065,7 @@ func (r *Replica) readDiskData(file string) error {
 	return nil
 }
 
+// unmarshalFile reads JSON file and return as object
 func (r *Replica) unmarshalFile(file string, obj interface{}) error {
 	p := r.diskPath(file)
 	f, err := os.Open(p)
@@ -1001,6 +1078,7 @@ func (r *Replica) unmarshalFile(file string, obj interface{}) error {
 	return dec.Decode(obj)
 }
 
+// Close the all fd except the head
 func (r *Replica) Close() error {
 	r.Lock()
 	defer r.Unlock()
@@ -1008,6 +1086,8 @@ func (r *Replica) Close() error {
 	return r.close()
 }
 
+// Delete remove the backing file, backing file meta, volume.meta and the
+// revision counter file 
 func (r *Replica) Delete() error {
 	r.Lock()
 	defer r.Unlock()
@@ -1023,6 +1103,7 @@ func (r *Replica) Delete() error {
 	return nil
 }
 
+// Snapshot creates new snapshot disk and meta hardlinked to the head
 func (r *Replica) Snapshot(name string, userCreated bool, created string, labels map[string]string) error {
 	r.Lock()
 	defer r.Unlock()
@@ -1030,6 +1111,7 @@ func (r *Replica) Snapshot(name string, userCreated bool, created string, labels
 	return r.createDisk(name, userCreated, created, labels, r.info.Size)
 }
 
+// Revert to the given disk name
 func (r *Replica) Revert(name, created string) (*Replica, error) {
 	r.Lock()
 	defer r.Unlock()
@@ -1037,6 +1119,8 @@ func (r *Replica) Revert(name, created string) (*Replica, error) {
 	return r.revertDisk(name, created)
 }
 
+// Expand creates new expansion disk and append extra block index to location
+// and update the desired size
 func (r *Replica) Expand(size int64) (err error) {
 	r.Lock()
 	defer r.Unlock()
@@ -1059,6 +1143,7 @@ func (r *Replica) Expand(size int64) (err error) {
 	return nil
 }
 
+// WriteAt writes the data type at the offset and increase revision counter
 func (r *Replica) WriteAt(buf []byte, offset int64) (int, error) {
 	if r.readOnly {
 		return 0, fmt.Errorf("Can not write on read-only replica")
@@ -1077,6 +1162,7 @@ func (r *Replica) WriteAt(buf []byte, offset int64) (int, error) {
 	return c, nil
 }
 
+// ReadAt returns the data byte at offset of the length of the given byte array
 func (r *Replica) ReadAt(buf []byte, offset int64) (int, error) {
 	r.RLock()
 	c, err := r.volume.ReadAt(buf, offset)
@@ -1084,6 +1170,7 @@ func (r *Replica) ReadAt(buf []byte, offset int64) (int, error) {
 	return c, err
 }
 
+// ListDisks returns an object contains diskInfo mapped to its name
 func (r *Replica) ListDisks() map[string]DiskInfo {
 	r.RLock()
 	defer r.RUnlock()
@@ -1111,6 +1198,8 @@ func (r *Replica) ListDisks() map[string]DiskInfo {
 	return result
 }
 
+// GetRemainSnapshotCounts returns the still available snapshot
+// chain number
 func (r *Replica) GetRemainSnapshotCounts() int {
 	r.RLock()
 	defer r.RUnlock()
@@ -1118,6 +1207,7 @@ func (r *Replica) GetRemainSnapshotCounts() int {
 	return maximumChainLength - len(r.activeDiskData)
 }
 
+// getDiskSize calculated the file size of the number of blocks multiply to 512
 func (r *Replica) getDiskSize(disk string) int64 {
 	ret := util.GetFileActualSize(r.diskPath(disk))
 	if ret == -1 {

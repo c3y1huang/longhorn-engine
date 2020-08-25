@@ -25,6 +25,7 @@ type diffDisk struct {
 	size int64
 }
 
+// RemoveIndex closes the fd of the given index and remove the index
 func (d *diffDisk) RemoveIndex(index int) error {
 	if err := d.files[index].Close(); err != nil {
 		return err
@@ -45,6 +46,8 @@ func (d *diffDisk) RemoveIndex(index int) error {
 	return nil
 }
 
+// Expand appends the number times of new block to the location and update the
+// size
 func (d *diffDisk) Expand(size int64) {
 	d.rmLock.Lock()
 	defer d.rmLock.Unlock()
@@ -59,10 +62,11 @@ func (d *diffDisk) Expand(size int64) {
 	return
 }
 
+// WriteAt writes the buf at the offset fit to the sector size
 func (d *diffDisk) WriteAt(buf []byte, offset int64) (int, error) {
-	startOffset := offset % d.sectorSize
-	startCut := d.sectorSize - startOffset
-	endOffset := (int64(len(buf)) + offset) % d.sectorSize
+	startOffset := offset % d.sectorSize  // 12 % 10 = 2
+	startCut := d.sectorSize - startOffset // 10 - 2 = 8
+	endOffset := (int64(len(buf)) + offset) % d.sectorSize // (14 + 12) / 10 = 6
 
 	if len(buf) == 0 {
 		return 0, nil
@@ -92,6 +96,8 @@ func (d *diffDisk) WriteAt(buf []byte, offset int64) (int, error) {
 	return len(buf), nil
 }
 
+// readModifyWrite copy given buf the the sector byte and write to file at offset
+// and update location to the last file
 func (d *diffDisk) readModifyWrite(buf []byte, offset int64) (int, error) {
 	if len(buf) == 0 {
 		return 0, nil
@@ -112,6 +118,8 @@ func (d *diffDisk) readModifyWrite(buf []byte, offset int64) (int, error) {
 	return d.fullWriteAt(readBuf, readOffset)
 }
 
+// fullWriteAt writes the buff at offset in the last file
+// and update the laster file mapping to (start sector + the number of sectors)
 func (d *diffDisk) fullWriteAt(buf []byte, offset int64) (int, error) {
 	if int64(len(buf))%d.sectorSize != 0 || offset%d.sectorSize != 0 {
 		return 0, fmt.Errorf("Write len(%d), offset %d not a multiple of %d", len(buf), offset, d.sectorSize)
@@ -131,6 +139,7 @@ func (d *diffDisk) fullWriteAt(buf []byte, offset int64) (int, error) {
 	return c, err
 }
 
+// ReadAt returns the length of buf byte
 func (d *diffDisk) ReadAt(buf []byte, offset int64) (int, error) {
 	startOffset := offset % d.sectorSize
 	startCut := d.sectorSize - startOffset
@@ -163,13 +172,14 @@ func (d *diffDisk) ReadAt(buf []byte, offset int64) (int, error) {
 		if _, err := d.fullReadAt(readBuf, offset+int64(len(buf))-endOffset); err != nil {
 			return 0, err
 		}
-
+ 
 		copy(buf[int64(len(buf))-endOffset:], readBuf[:endOffset])
 	}
 
 	return len(buf), nil
 }
 
+// fullReadAt return the length of the read byte array
 func (d *diffDisk) fullReadAt(buf []byte, offset int64) (int, error) {
 	if int64(len(buf))%d.sectorSize != 0 || offset%d.sectorSize != 0 {
 		return 0, fmt.Errorf("Read not a multiple of %d", d.sectorSize)
@@ -180,7 +190,7 @@ func (d *diffDisk) fullReadAt(buf []byte, offset int64) (int, error) {
 	}
 
 	count := 0
-	sectors := int64(len(buf)) / d.sectorSize
+	sectors := int64(len(buf)) / d.sectorSize 
 	readSectors := int64(1)
 	startSector := offset / d.sectorSize
 	target, err := d.lookup(startSector)
@@ -218,8 +228,9 @@ func (d *diffDisk) fullReadAt(buf []byte, offset int64) (int, error) {
 	return count, nil
 }
 
+// read calculate the buff size to read in file
 func (d *diffDisk) read(target byte, buf []byte, startOffset int64, startSector int64, sectors int64) (int, error) {
-	bufStart := startSector * d.sectorSize
+	bufStart := startSector * d.sectorSize 
 	bufLength := sectors * d.sectorSize
 	offset := startOffset + bufStart
 	size, err := d.files[target].Size()
@@ -246,6 +257,7 @@ func (d *diffDisk) read(target byte, buf []byte, startOffset int64, startSector 
 	return d.files[target].ReadAt(newBuf, offset)
 }
 
+// lookup the file index contains the sector
 func (d *diffDisk) lookup(sector int64) (byte, error) {
 	if sector >= int64(len(d.location)) {
 		// We know the IO will result in EOF

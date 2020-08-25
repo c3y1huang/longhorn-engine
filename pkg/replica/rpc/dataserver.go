@@ -9,11 +9,13 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/replica"
 )
 
+// DataServer object
 type DataServer struct {
 	address string
 	s       *replica.Server
 }
 
+// NewDataServer returns new DataServer
 func NewDataServer(address string, s *replica.Server) *DataServer {
 	return &DataServer{
 		address: address,
@@ -21,6 +23,7 @@ func NewDataServer(address string, s *replica.Server) *DataServer {
 	}
 }
 
+// ListenAndServe starts infinite loop to process TCP connection
 func (s *DataServer) ListenAndServe() error {
 	addr, err := net.ResolveTCPAddr("tcp", s.address)
 	if err != nil {

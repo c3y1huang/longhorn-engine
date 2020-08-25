@@ -15,26 +15,31 @@ import (
 	"github.com/longhorn/longhorn-engine/proto/ptypes"
 )
 
+// ReplicaServer object
 type ReplicaServer struct {
 	s *replica.Server
 }
 
+// ReplicaHealthCheckServer object
 type ReplicaHealthCheckServer struct {
 	rs *ReplicaServer
 }
 
+// NewReplicaServer returns new ReplicaServer
 func NewReplicaServer(s *replica.Server) *ReplicaServer {
 	return &ReplicaServer{
 		s: s,
 	}
 }
 
+// NewReplicaHealthCheckServer returns new ReplicaHealthCheckServer
 func NewReplicaHealthCheckServer(rs *ReplicaServer) *ReplicaHealthCheckServer {
 	return &ReplicaHealthCheckServer{
 		rs: rs,
 	}
 }
 
+// listReplicaDisks returns all DiskInfo in single object
 func (rs *ReplicaServer) listReplicaDisks() map[string]*ptypes.DiskInfo {
 	disks := map[string]*ptypes.DiskInfo{}
 	r := rs.s.Replica()
@@ -56,6 +61,7 @@ func (rs *ReplicaServer) listReplicaDisks() map[string]*ptypes.DiskInfo {
 	return disks
 }
 
+// getReplica returns a new ptypes.Replica object
 func (rs *ReplicaServer) getReplica() (replica *ptypes.Replica) {
 	state, info := rs.s.Status()
 	replica = &ptypes.Replica{
@@ -79,6 +85,7 @@ func (rs *ReplicaServer) getReplica() (replica *ptypes.Replica) {
 	return replica
 }
 
+// ReplicaCreate creates new replica disk
 func (rs *ReplicaServer) ReplicaCreate(ctx context.Context, req *ptypes.ReplicaCreateRequest) (*ptypes.ReplicaCreateResponse, error) {
 	size := int64(0)
 	if req.Size != "" {
@@ -100,6 +107,7 @@ func (rs *ReplicaServer) ReplicaDelete(ctx context.Context, req *empty.Empty) (*
 	return &empty.Empty{}, rs.s.Delete()
 }
 
+// ReplicaGet returns a new ptypes.ReplicaGetResponse contains Replica object
 func (rs *ReplicaServer) ReplicaGet(ctx context.Context, req *empty.Empty) (*ptypes.ReplicaGetResponse, error) {
 	return &ptypes.ReplicaGetResponse{Replica: rs.getReplica()}, nil
 }

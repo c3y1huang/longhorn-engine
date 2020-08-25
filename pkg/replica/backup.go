@@ -10,13 +10,17 @@ import (
 	"github.com/longhorn/backupstore"
 )
 
+// ProgressState type
 type ProgressState string
 
 const (
 	snapBlockSize = 2 << 20 // 2MiB
 
+	// ProgressStateInProgress in_progesss
 	ProgressStateInProgress = ProgressState("in_progress")
+	// ProgressStateComplete complete
 	ProgressStateComplete   = ProgressState("complete")
+	// ProgressStateError error
 	ProgressStateError      = ProgressState("error")
 )
 
@@ -30,6 +34,7 @@ type DeltaBlockBackupOperations interface {
 }
 */
 
+// RestoreStatus object
 type RestoreStatus struct {
 	sync.RWMutex
 	replicaAddress string
@@ -47,6 +52,7 @@ type RestoreStatus struct {
 	CurrentRestoringBackup string
 }
 
+// NewRestore returns new RestoreStatus
 func NewRestore(snapshotName, replicaAddress, backupURL, currentRestoringBackup string) *RestoreStatus {
 	return &RestoreStatus{
 		replicaAddress:         replicaAddress,
@@ -59,6 +65,7 @@ func NewRestore(snapshotName, replicaAddress, backupURL, currentRestoringBackup 
 	}
 }
 
+// StartNewRestore populates the RestoreStatus
 func (rr *RestoreStatus) StartNewRestore(backupURL, currentRestoringBackup, toFileName, snapshotDiskName string, validLastRestoredBackup bool) {
 	rr.Lock()
 	defer rr.Unlock()
@@ -75,6 +82,7 @@ func (rr *RestoreStatus) StartNewRestore(backupURL, currentRestoringBackup, toFi
 	rr.CurrentRestoringBackup = currentRestoringBackup
 }
 
+// UpdateRestoreStatus updates the restore status to RestoreStatus
 func (rr *RestoreStatus) UpdateRestoreStatus(snapshot string, rp int, re error) {
 	rr.Lock()
 	defer rr.Unlock()
@@ -92,6 +100,7 @@ func (rr *RestoreStatus) UpdateRestoreStatus(snapshot string, rp int, re error) 
 	}
 }
 
+// FinishRestore update the RestoreStatus if state is not error
 func (rr *RestoreStatus) FinishRestore() {
 	rr.Lock()
 	defer rr.Unlock()
@@ -102,6 +111,7 @@ func (rr *RestoreStatus) FinishRestore() {
 	}
 }
 
+// DeepCopy returns a new RestoreStatus
 func (rr *RestoreStatus) DeepCopy() *RestoreStatus {
 	rr.RLock()
 	defer rr.RUnlock()
@@ -117,6 +127,7 @@ func (rr *RestoreStatus) DeepCopy() *RestoreStatus {
 	}
 }
 
+// BackupStatus object
 type BackupStatus struct {
 	lock          sync.Mutex
 	backingFile   *BackingFile
@@ -130,6 +141,7 @@ type BackupStatus struct {
 	IsIncremental bool
 }
 
+// NewBackup returns new BackupStatus
 func NewBackup(backingFile *BackingFile) *BackupStatus {
 	return &BackupStatus{
 		backingFile: backingFile,
@@ -137,6 +149,7 @@ func NewBackup(backingFile *BackingFile) *BackupStatus {
 	}
 }
 
+// UpdateBackupStatus populates the BackupStatus
 func (rb *BackupStatus) UpdateBackupStatus(snapID, volumeID string, progress int, url string, errString string) error {
 	id := GenerateSnapshotDiskName(snapID)
 	rb.lock.Lock()
@@ -158,6 +171,7 @@ func (rb *BackupStatus) UpdateBackupStatus(snapID, volumeID string, progress int
 	return nil
 }
 
+// HasSnapshot returns true if snapshot ID exist
 func (rb *BackupStatus) HasSnapshot(snapID, volumeID string) bool {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
@@ -173,6 +187,7 @@ func (rb *BackupStatus) HasSnapshot(snapID, volumeID string) bool {
 	return true
 }
 
+// OpenSnapshot creates readonly replica and update to BackupStatus
 func (rb *BackupStatus) OpenSnapshot(snapID, volumeID string) error {
 	id := GenerateSnapshotDiskName(snapID)
 	rb.lock.Lock()
@@ -201,6 +216,7 @@ func (rb *BackupStatus) OpenSnapshot(snapID, volumeID string) error {
 	return nil
 }
 
+// assertOpen returns error if given id and volumeID not exist in BackupStatus
 func (rb *BackupStatus) assertOpen(id, volumeID string) error {
 	if rb.volumeID != volumeID || rb.SnapshotID != id {
 		return fmt.Errorf("Invalid state volume [%s] and snapshot [%s] are open, not volume [%s], snapshot [%s]", rb.volumeID, rb.SnapshotID, volumeID, id)
@@ -208,6 +224,7 @@ func (rb *BackupStatus) assertOpen(id, volumeID string) error {
 	return nil
 }
 
+// ReadSnapshot returns error if unable to read snapshot at offset
 func (rb *BackupStatus) ReadSnapshot(snapID, volumeID string, start int64, data []byte) error {
 	id := GenerateSnapshotDiskName(snapID)
 	rb.lock.Lock()
@@ -223,6 +240,7 @@ func (rb *BackupStatus) ReadSnapshot(snapID, volumeID string, start int64, data 
 	return err
 }
 
+// CloseSnapshot close all fd except head
 func (rb *BackupStatus) CloseSnapshot(snapID, volumeID string) error {
 	id := GenerateSnapshotDiskName(snapID)
 	rb.lock.Lock()
@@ -249,6 +267,8 @@ func (rb *BackupStatus) CloseSnapshot(snapID, volumeID string) error {
 	return err
 }
 
+// CompareSnapshot returns offset mappings of file index not between the snapID
+// and compareSnapID
 func (rb *BackupStatus) CompareSnapshot(snapID, compareSnapID, volumeID string) (*backupstore.Mappings, error) {
 	id := GenerateSnapshotDiskName(snapID)
 	compareID := ""
@@ -304,6 +324,8 @@ func (rb *BackupStatus) CompareSnapshot(snapID, compareSnapID, volumeID string) 
 	return mappings, nil
 }
 
+// findIndex returns the index for the given id. Returns 1 if id not exist and
+// 0 if backingFile also absent. Returns -1 if id not found in activeDiskData
 func (rb *BackupStatus) findIndex(id string) int {
 	if id == "" {
 		if rb.backingFile == nil {
@@ -324,6 +346,9 @@ func (rb *BackupStatus) findIndex(id string) int {
 	return -1
 }
 
+// preload loop through all diskDisk files and maps the file
+// index to the extent index, and sets teh diffDisk size to the last diffDisk
+// file
 func preload(d *diffDisk) error {
 	for i, f := range d.files {
 		if i == 0 {

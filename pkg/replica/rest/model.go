@@ -9,6 +9,7 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/replica"
 )
 
+// Replica object
 type Replica struct {
 	client.Resource
 	Dirty           bool                        `json:"dirty"`
@@ -25,6 +26,7 @@ type Replica struct {
 	RevisionCounter int64                       `json:"revisioncounter,string"`
 }
 
+// NewReplica return new Replica
 func NewReplica(context *api.ApiContext, state replica.State, info replica.Info, rep *replica.Replica) *Replica {
 	r := &Replica{
 		Resource: client.Resource{
@@ -69,6 +71,7 @@ func NewReplica(context *api.ApiContext, state replica.State, info replica.Info,
 	return r
 }
 
+// NewSchema returns new client.Schemas
 func NewSchema() *client.Schemas {
 	schemas := &client.Schemas{}
 
@@ -83,10 +86,12 @@ func NewSchema() *client.Schemas {
 	return schemas
 }
 
+// Server object
 type Server struct {
 	s *replica.Server
 }
 
+// NewServer returns new Server object
 func NewServer(s *replica.Server) *Server {
 	return &Server{
 		s: s,
