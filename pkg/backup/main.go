@@ -24,6 +24,7 @@ type ErrorResponse struct {
 	Error string
 }
 
+// ResponseLogAndError determines what to print out
 func ResponseLogAndError(v interface{}) {
 	if e, ok := v.(*logrus.Entry); ok {
 		e.Error(e.Message)
@@ -51,10 +52,14 @@ func ResponseOutput(v interface{}) ([]byte, error) {
 	return j, nil
 }
 
+// RequiredMissingError returns an error message for the given name when its
+// missing
 func RequiredMissingError(name string) error {
 	return fmt.Errorf("Cannot find valid required parameter: %v", name)
 }
 
+// DoBackupCreate creates incremental backup file. Returns early if is
+// none-qcow
 func DoBackupCreate(volumeName string, snapshotName string, destURL string,
 	labels []string) (string, *replica.BackupStatus, error) {
 	var (
@@ -127,6 +132,7 @@ func DoBackupCreate(volumeName string, snapshotName string, destURL string,
 	return backupID, replicaBackup, nil
 }
 
+// DoBackupRestore uncompress backup files
 func DoBackupRestore(backupURL string, toFile string, restoreObj *replica.RestoreStatus) error {
 	backupURL = util.UnescapeURL(backupURL)
 	log.Debugf("Start restoring from %v into snapshot %v", backupURL, toFile)
@@ -144,6 +150,7 @@ func DoBackupRestore(backupURL string, toFile string, restoreObj *replica.Restor
 	return nil
 }
 
+// DoBackupRestoreIncrementally restores backup incredentally to delta file
 func DoBackupRestoreIncrementally(url string, deltaFile string, lastRestored string,
 	restoreObj *replica.RestoreStatus) error {
 	backupURL := util.UnescapeURL(url)
@@ -163,6 +170,7 @@ func DoBackupRestoreIncrementally(url string, deltaFile string, lastRestored str
 	return nil
 }
 
+// CreateNewSnapshotMetafile creates snapshot meta file
 func CreateNewSnapshotMetafile(file string) error {
 	f, err := os.Create(file + ".tmp")
 	if err != nil {
