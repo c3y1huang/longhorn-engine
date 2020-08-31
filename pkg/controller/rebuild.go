@@ -11,6 +11,8 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/types"
 )
 
+// getReplicaDiskAndHead returns all replica disks excluding head, replica head
+// and any error encountered
 func getReplicaDisksAndHead(address string) (map[string]types.DiskInfo, string, error) {
 	repClient, err := client.NewReplicaClient(address)
 	if err != nil {
@@ -40,10 +42,15 @@ func getReplicaDisksAndHead(address string) (map[string]types.DiskInfo, string, 
 	return disks, head, nil
 }
 
+// getDiskMetaFileName returns the disk .meta file name
 func getDiskMetaFileName(disk string) string {
 	return fmt.Sprintf("%s.meta", disk)
 }
 
+// getCurrentAndRWReplica returns the replica for the given address, all
+// replica in RW and mistached condition:
+// * unable to find matching replica for the given address
+// * unable to find any replica in RW
 func (c *Controller) getCurrentAndRWReplica(address string) (*types.Replica, *types.Replica, error) {
 	var (
 		current, rwReplica *types.Replica
@@ -66,6 +73,8 @@ func (c *Controller) getCurrentAndRWReplica(address string) (*types.Replica, *ty
 	return current, rwReplica, nil
 }
 
+// VerifyRebuildReplica ensures replica disk match for the given address and
+// sets to RW
 func (c *Controller) VerifyRebuildReplica(address string) error {
 	// Prevent snapshot happenes at the same time, as well as prevent
 	// writing from happening since we're updating revision counter
@@ -122,6 +131,7 @@ func (c *Controller) VerifyRebuildReplica(address string) error {
 	return nil
 }
 
+// syncFile syncts the given file from replica to replica
 func syncFile(from, to string, fromReplica, toReplica *types.Replica) error {
 	if to == "" {
 		to = from
@@ -155,6 +165,8 @@ func syncFile(from, to string, fromReplica, toReplica *types.Replica) error {
 	return err
 }
 
+// PrepareRebuildReplica resets replica revision counter to 0 and removes extra 
+// disks for the given address. Returns the SyncFileInfo
 func (c *Controller) PrepareRebuildReplica(address string) ([]types.SyncFileInfo, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -215,6 +227,7 @@ func (c *Controller) PrepareRebuildReplica(address string) ([]types.SyncFileInfo
 	return syncFileInfoList, nil
 }
 
+// removeExtraDisks with gRPC client
 func removeExtraDisks(extraDisks map[string]types.DiskInfo, address string) (err error) {
 	defer func() {
 		err = errors.Wrapf(err, "failed to remove extra disks %v in replica %v", extraDisks, address)

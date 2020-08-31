@@ -30,18 +30,22 @@ type ControllerHealthCheckServer struct {
 	cs *ControllerServer
 }
 
+// NewControllerServer returns new ControllerServer object
 func NewControllerServer(c *controller.Controller) *ControllerServer {
 	return &ControllerServer{
 		c: c,
 	}
 }
 
+// NewControllerHealthCheckServer returns new ControllerHealthCheckServer
+// object
 func NewControllerHealthCheckServer(cs *ControllerServer) *ControllerHealthCheckServer {
 	return &ControllerHealthCheckServer{
 		cs: cs,
 	}
 }
 
+// GetControllerGRPCServer returns new gRPC controller server
 func GetControllerGRPCServer(c *controller.Controller) *grpc.Server {
 	grpcServer := grpc.NewServer()
 
@@ -54,6 +58,7 @@ func GetControllerGRPCServer(c *controller.Controller) *grpc.Server {
 	return grpcServer
 }
 
+// replicaToControllerReplica returns new ptypes.ControllerReplica
 func (cs *ControllerServer) replicaToControllerReplica(r *types.Replica) *ptypes.ControllerReplica {
 	return &ptypes.ControllerReplica{
 		Address: &ptypes.ReplicaAddress{
@@ -63,6 +68,7 @@ func (cs *ControllerServer) replicaToControllerReplica(r *types.Replica) *ptypes
 	}
 }
 
+// syncFileInfoListToControllerFormat returns a list of ptypes.SyncFileInfo
 func (cs *ControllerServer) syncFileInfoListToControllerFormat(list []types.SyncFileInfo) []*ptypes.SyncFileInfo {
 	res := []*ptypes.SyncFileInfo{}
 	for _, info := range list {
@@ -71,6 +77,7 @@ func (cs *ControllerServer) syncFileInfoListToControllerFormat(list []types.Sync
 	return res
 }
 
+// syncFileInfoToControllerFormat returns new ptypes.SyncFileInfo
 func (cs *ControllerServer) syncFileInfoToControllerFormat(info types.SyncFileInfo) *ptypes.SyncFileInfo {
 	return &ptypes.SyncFileInfo{
 		FromFileName: info.FromFileName,
@@ -79,6 +86,7 @@ func (cs *ControllerServer) syncFileInfoToControllerFormat(info types.SyncFileIn
 	}
 }
 
+// getVolume returns new ptypes.Volume object
 func (cs *ControllerServer) getVolume() *ptypes.Volume {
 	lastExpansionError, lastExpansionFailedAt := cs.c.GetExpansionErrorInfo()
 	return &ptypes.Volume{
@@ -94,6 +102,7 @@ func (cs *ControllerServer) getVolume() *ptypes.Volume {
 	}
 }
 
+// getControllerReplica gets the controller replica for the given address
 func (cs *ControllerServer) getControllerReplica(address string) *ptypes.ControllerReplica {
 	for _, r := range cs.c.ListReplicas() {
 		if r.Address == address {
@@ -104,6 +113,7 @@ func (cs *ControllerServer) getControllerReplica(address string) *ptypes.Control
 	return nil
 }
 
+// listControllerReplica returns a list of ptypes.ControllerReplica
 func (cs *ControllerServer) listControllerReplica() []*ptypes.ControllerReplica {
 	csList := []*ptypes.ControllerReplica{}
 	for _, r := range cs.c.ListReplicas() {
@@ -113,6 +123,7 @@ func (cs *ControllerServer) listControllerReplica() []*ptypes.ControllerReplica 
 	return csList
 }
 
+// VolumeGet returns new ptypes.Volume object
 func (cs *ControllerServer) VolumeGet(ctx context.Context, req *empty.Empty) (*ptypes.Volume, error) {
 	return cs.getVolume(), nil
 }
@@ -124,6 +135,8 @@ func (cs *ControllerServer) VolumeStart(ctx context.Context, req *ptypes.VolumeS
 	return cs.getVolume(), nil
 }
 
+// VolumeShutdown shuts down the frontend and backup. Returns ptypes.Volume or
+// any error encountered
 func (cs *ControllerServer) VolumeShutdown(ctx context.Context, req *empty.Empty) (*ptypes.Volume, error) {
 	if err := cs.c.Shutdown(); err != nil {
 		return nil, err
@@ -131,6 +144,8 @@ func (cs *ControllerServer) VolumeShutdown(ctx context.Context, req *empty.Empty
 	return cs.getVolume(), nil
 }
 
+// VolumeSnapshot creates snapshot and returns a new ptypes.VolumeSnapshotReply
+// object
 func (cs *ControllerServer) VolumeSnapshot(ctx context.Context, req *ptypes.VolumeSnapshotRequest) (*ptypes.VolumeSnapshotReply, error) {
 	name, err := cs.c.Snapshot(req.Name, req.Labels)
 	if err != nil {
@@ -142,6 +157,8 @@ func (cs *ControllerServer) VolumeSnapshot(ctx context.Context, req *ptypes.Volu
 	}, nil
 }
 
+// VolumeRevert reverts snapshot for the given requested name with gRPC client.
+// Returns with the Controller Volume object or error encountered
 func (cs *ControllerServer) VolumeRevert(ctx context.Context, req *ptypes.VolumeRevertRequest) (*ptypes.Volume, error) {
 	if err := cs.c.Revert(req.Name); err != nil {
 		return nil, err
@@ -150,6 +167,8 @@ func (cs *ControllerServer) VolumeRevert(ctx context.Context, req *ptypes.Volume
 	return cs.getVolume(), nil
 }
 
+// VolumeExpand expands the backend and frontend to the size for the given
+// request and returns the Volume object
 func (cs *ControllerServer) VolumeExpand(ctx context.Context, req *ptypes.VolumeExpandRequest) (*ptypes.Volume, error) {
 	if err := cs.c.Expand(req.Size); err != nil {
 		return nil, err

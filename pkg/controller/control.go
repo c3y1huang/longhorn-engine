@@ -116,6 +116,7 @@ func (c *Controller) AddReplica(address string, snapshotRequired bool, mode type
 	return c.addReplica(address, snapshotRequired, mode)
 }
 
+// hasWOReplica returns true if one of the Controller replica is WO
 func (c *Controller) hasWOReplica() bool {
 	for _, i := range c.replicas {
 		if i.Mode == types.WO {
@@ -125,6 +126,10 @@ func (c *Controller) hasWOReplica() bool {
 	return false
 }
 
+// canAdd checks if the replica is addable, and returns false if:
+// * address exist in the controller replica
+// * one of the Controller replica is WO
+// * Controller is expanding
 func (c *Controller) canAdd(address string) (bool, error) {
 	if c.hasReplica(address) {
 		return false, nil
@@ -161,6 +166,8 @@ func (c *Controller) addReplica(address string, snapshotRequired bool, mode type
 	return c.addReplicaNoLock(newBackend, address, snapshotRequired, mode)
 }
 
+// Snapshot does system level sync with namespace nsenter executor or sync, and
+// creates snapshot and returns the name
 func (c *Controller) Snapshot(name string, labels map[string]string) (string, error) {
 	// We perform a system level sync without the lock. Cannot block read/write
 	// Can be improved to only sync the filesystem on the block device later
@@ -193,6 +200,7 @@ func (c *Controller) Snapshot(name string, labels map[string]string) (string, er
 	return name, nil
 }
 
+// Expand the backend and frontend to the given size
 func (c *Controller) Expand(size int64) error {
 	if err := c.startExpansion(size); err != nil {
 		logrus.Errorf("controller failed to start expansion: %v", err)
@@ -258,6 +266,13 @@ func (c *Controller) Expand(size int64) error {
 	return nil
 }
 
+// startExpansion asserts volume is able to start the expansion and sets
+// Controller.isExpanding. Returns error when:
+// * Controller already expanding
+// * Replica is WO
+// * Controller size if greater than the expansion size
+// * Controller size if equal to the expansion size
+// * Frontend status is up
 func (c *Controller) startExpansion(size int64) (err error) {
 	c.Lock()
 	defer c.Unlock()
@@ -289,6 +304,7 @@ func (c *Controller) startExpansion(size int64) (err error) {
 	return nil
 }
 
+// finishExpansion update the Controller size and resets Controller.isExpanding
 func (c *Controller) finishExpansion(expanded bool, size int64) {
 	c.Lock()
 	c.Unlock()
@@ -299,18 +315,23 @@ func (c *Controller) finishExpansion(expanded bool, size int64) {
 	return
 }
 
+// IsExpanding returns Controller.isExpanding
 func (c *Controller) IsExpanding() bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.isExpanding
 }
 
+// GetExpansionErrorInfo returns the Controller.lastExpansionError and
+// Controller.lastExpansionFailedAt
 func (c *Controller) GetExpansionErrorInfo() (string, string) {
 	c.RLock()
 	defer c.RUnlock()
 	return c.lastExpansionError, c.lastExpansionFailedAt
 }
 
+// addReplicaNoLock creates snapshot to the new backend and populates
+// backup writer and reader fd stream for the given address
 func (c *Controller) addReplicaNoLock(newBackend types.Backend, address string, snapshot bool, mode types.Mode) error {
 	if ok, err := c.canAdd(address); !ok {
 		return err
@@ -350,6 +371,8 @@ func (c *Controller) addReplicaNoLock(newBackend types.Backend, address string, 
 	return nil
 }
 
+// hasReplica returns true if given address exist in the Controller replica
+// address
 func (c *Controller) hasReplica(address string) bool {
 	for _, i := range c.replicas {
 		if i.Address == address {
@@ -359,6 +382,8 @@ func (c *Controller) hasReplica(address string) bool {
 	return false
 }
 
+// RemoveReplica removes Controller replica and backend for the given address.
+// Returns error when is the only replica and frontend state is up 
 func (c *Controller) RemoveReplica(address string) error {
 	c.Lock()
 	defer c.Unlock()
@@ -380,10 +405,12 @@ func (c *Controller) RemoveReplica(address string) error {
 	return nil
 }
 
+// ListReplicas returns Controller replicas
 func (c *Controller) ListReplicas() []types.Replica {
 	return c.replicas
 }
 
+// SetReplicaMode
 func (c *Controller) SetReplicaMode(address string, mode types.Mode) error {
 	switch mode {
 	case types.ERR:
@@ -400,6 +427,8 @@ func (c *Controller) SetReplicaMode(address string, mode types.Mode) error {
 	return nil
 }
 
+// setReplicaModeNoLock sets replica mode for the given address and mode type.
+// Skips if replica mode is ERR.
 func (c *Controller) setReplicaModeNoLock(address string, mode types.Mode) {
 	for i, r := range c.replicas {
 		if r.Address == address {
@@ -416,6 +445,8 @@ func (c *Controller) setReplicaModeNoLock(address string, mode types.Mode) {
 	}
 }
 
+// startFrontend upgrades, initialize and start frontend for the Controller
+// driver, and returns any error encounter
 func (c *Controller) startFrontend() error {
 	if len(c.replicas) > 0 && c.frontend != nil {
 		if c.isUpgrade {
@@ -438,6 +469,12 @@ func (c *Controller) startFrontend() error {
 	return nil
 }
 
+// StartFrontend starts frontend for the Controller driver and returns any
+// error encountered or mis-match condition:
+// * the given frontend is expanding
+// * the given frontent is empty
+// * the given frontend state not down
+// * the given frontend not exist in supported Frontends
 func (c *Controller) StartFrontend(frontend string) error {
 	c.Lock()
 	defer c.Unlock()
@@ -462,6 +499,8 @@ func (c *Controller) StartFrontend(frontend string) error {
 	return c.startFrontend()
 }
 
+// Start creates new backend and populate replicas for the given addresses,
+// then starts the frontend
 func (c *Controller) Start(addresses ...string) error {
 	var expectedRevision int64
 
@@ -571,6 +610,8 @@ func (c *Controller) Start(addresses ...string) error {
 	return nil
 }
 
+// WriteAt writes data to the offset and returns the length of the data buff
+// byte
 func (c *Controller) WriteAt(b []byte, off int64) (int, error) {
 	c.RLock()
 	l := len(b)
@@ -589,6 +630,8 @@ func (c *Controller) WriteAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
+// ReadAt reads the number of byte into the starting of the given offset for
+// the input source and record time in metrics
 func (c *Controller) ReadAt(b []byte, off int64) (int, error) {
 	c.RLock()
 	l := len(b)
@@ -607,6 +650,8 @@ func (c *Controller) ReadAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
+// handleErrorNoLock marks the replica mode to ERR for any given error, and
+// Logs error if none good replica found
 func (c *Controller) handleErrorNoLock(err error) error {
 	if bErr, ok := err.(*BackendError); ok {
 		if len(bErr.Errors) > 0 {
@@ -630,21 +675,25 @@ func (c *Controller) handleErrorNoLock(err error) error {
 	return err
 }
 
+// handleError does Controller lock and calls to handle Error
 func (c *Controller) handleError(err error) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.handleErrorNoLock(err)
 }
 
+// reset the Controller replica and backend
 func (c *Controller) reset() {
 	c.replicas = []types.Replica{}
 	c.backend = &replicator{}
 }
 
+// Close shuts down frontend driver and backend fd stream
 func (c *Controller) Close() error {
 	return c.Shutdown()
 }
 
+// shutdownFrontend shuts down frontend for the Controller driver
 func (c *Controller) shutdownFrontend() error {
 	// Make sure writing data won't be blocked
 	c.RLock()
@@ -656,6 +705,7 @@ func (c *Controller) shutdownFrontend() error {
 	return nil
 }
 
+// ShutdownFrontend shuts down frontend for the Controller driver
 func (c *Controller) ShutdownFrontend() error {
 	if err := c.shutdownFrontend(); err != nil {
 		return err
@@ -663,6 +713,8 @@ func (c *Controller) ShutdownFrontend() error {
 	return nil
 }
 
+// shutdownBackend closes the backend fd stream and resets Controller replicas,
+// and Controller backend object
 func (c *Controller) shutdownBackend() error {
 	c.Lock()
 	defer c.Unlock()
@@ -673,6 +725,7 @@ func (c *Controller) shutdownBackend() error {
 	return err
 }
 
+// Shutdown shuts down the frontend driver and backend fd stream
 func (c *Controller) Shutdown() error {
 	/*
 		Need to shutdown frontend first because it will write
@@ -694,10 +747,12 @@ func (c *Controller) Shutdown() error {
 	return nil
 }
 
+// Size returns the size in the Controller
 func (c *Controller) Size() int64 {
 	return c.size
 }
 
+// monitoring sets the replica type.ERR if monitorChan detects error
 func (c *Controller) monitoring(address string, backend types.Backend) {
 	monitorChan := backend.GetMonitorChannel()
 
@@ -714,6 +769,7 @@ func (c *Controller) monitoring(address string, backend types.Backend) {
 	logrus.Infof("Monitoring stopped %v", address)
 }
 
+// Endpoint returns the frontend endpoint for the Controller driver
 func (c *Controller) Endpoint() string {
 	if c.frontend != nil {
 		return c.frontend.Endpoint()
@@ -721,6 +777,7 @@ func (c *Controller) Endpoint() string {
 	return ""
 }
 
+// Frontend returns the frontend name of the Controller driver if it exists
 func (c *Controller) Frontend() string {
 	if c.frontend != nil {
 		return c.frontend.FrontendName()
@@ -728,6 +785,8 @@ func (c *Controller) Frontend() string {
 	return ""
 }
 
+// FrontendState returns the frontend state for the Controller driver if it
+// exists
 func (c *Controller) FrontendState() string {
 	if c.frontend != nil {
 		return string(c.frontend.State())
@@ -758,10 +817,12 @@ func (c *Controller) metricsStart() {
 	}()
 }
 
+// GetLatestMetics returns the lastMetrics in the Controller
 func (c *Controller) GetLatestMetics() *types.Metrics {
 	return c.latestMetrics
 }
 
+// BackupReplicaMappingCreate maps the given replicaAddress to the given id
 func (c *Controller) BackupReplicaMappingCreate(id string, replicaAddress string) error {
 	c.backupListMutex.Lock()
 	defer c.backupListMutex.Unlock()
@@ -769,6 +830,7 @@ func (c *Controller) BackupReplicaMappingCreate(id string, replicaAddress string
 	return nil
 }
 
+// BackupReplicaMappingGet returns object contains  the backupList
 func (c *Controller) BackupReplicaMappingGet() map[string]string {
 	c.backupListMutex.RLock()
 	defer c.backupListMutex.RUnlock()
@@ -779,6 +841,8 @@ func (c *Controller) BackupReplicaMappingGet() map[string]string {
 	return ret
 }
 
+// BackupReplicaMappingDelete removes id from Controller backupList
+// or returns error if id not exist
 func (c *Controller) BackupReplicaMappingDelete(id string) error {
 	c.backupListMutex.Lock()
 	defer c.backupListMutex.Unlock()

@@ -15,6 +15,8 @@ type MultiWriterError struct {
 	Errors  []error
 }
 
+// Error returns all error messages as single string separated by ";" or
+// returns Unknown
 func (m *MultiWriterError) Error() string {
 	errors := []string{}
 	for _, err := range m.Errors {
@@ -33,6 +35,9 @@ func (m *MultiWriterError) Error() string {
 	}
 }
 
+// WriteAt writes async for the given data byte at the given offset for its
+// target data stream. Returns the length of the data byte or errors
+// encountered
 func (m *MultiWriterAt) WriteAt(p []byte, off int64) (n int, err error) {
 	errs := make([]error, len(m.writers))
 	errored := false

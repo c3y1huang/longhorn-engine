@@ -23,12 +23,14 @@ const (
 	GRPCServiceTimeout = 1 * time.Minute
 )
 
+// NewControllerClient returns new ControllerClient
 func NewControllerClient(address string) *ControllerClient {
 	return &ControllerClient{
 		grpcAddress: util.GetGRPCAddress(address),
 	}
 }
 
+// GetVolumeInfo returns new types.VolumeInfo object
 func GetVolumeInfo(v *ptypes.Volume) *types.VolumeInfo {
 	return &types.VolumeInfo{
 		Name:                  v.Name,
@@ -43,6 +45,7 @@ func GetVolumeInfo(v *ptypes.Volume) *types.VolumeInfo {
 	}
 }
 
+// GetControllerReplicaInfo returns new types.ControllerReplicaInfo object
 func GetControllerReplicaInfo(cr *ptypes.ControllerReplica) *types.ControllerReplicaInfo {
 	return &types.ControllerReplicaInfo{
 		Address: cr.Address.Address,
@@ -50,6 +53,7 @@ func GetControllerReplicaInfo(cr *ptypes.ControllerReplica) *types.ControllerRep
 	}
 }
 
+// GetControllerReplica returns new ptypes.ControllerReplica object
 func GetControllerReplica(r *types.ControllerReplicaInfo) *ptypes.ControllerReplica {
 	return &ptypes.ControllerReplica{
 		Address: &ptypes.ReplicaAddress{
@@ -59,6 +63,7 @@ func GetControllerReplica(r *types.ControllerReplicaInfo) *ptypes.ControllerRepl
 	}
 }
 
+// GetSyncFileInfoList returns a list of types.SyncFileInfo
 func GetSyncFileInfoList(list []*ptypes.SyncFileInfo) []types.SyncFileInfo {
 	res := []types.SyncFileInfo{}
 	for _, info := range list {
@@ -67,6 +72,7 @@ func GetSyncFileInfoList(list []*ptypes.SyncFileInfo) []types.SyncFileInfo {
 	return res
 }
 
+// GetSyncFileInfo returns a types.SyncFileInfo object
 func GetSyncFileInfo(info *ptypes.SyncFileInfo) types.SyncFileInfo {
 	return types.SyncFileInfo{
 		FromFileName: info.FromFileName,
@@ -75,6 +81,7 @@ func GetSyncFileInfo(info *ptypes.SyncFileInfo) types.SyncFileInfo {
 	}
 }
 
+// VolumeGet get volume with gRPC client and returns a new VolumeInfo object
 func (c *ControllerClient) VolumeGet() (*types.VolumeInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -94,6 +101,7 @@ func (c *ControllerClient) VolumeGet() (*types.VolumeInfo, error) {
 	return GetVolumeInfo(volume), nil
 }
 
+// VolumeStart start volume with gRPC client
 func (c *ControllerClient) VolumeStart(replicas ...string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -114,6 +122,7 @@ func (c *ControllerClient) VolumeStart(replicas ...string) error {
 	return nil
 }
 
+// VolumeSnapshot start volume with gRPC client
 func (c *ControllerClient) VolumeSnapshot(name string, labels map[string]string) (string, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -136,6 +145,7 @@ func (c *ControllerClient) VolumeSnapshot(name string, labels map[string]string)
 	return reply.Name, nil
 }
 
+// VolumeRevert reverts volume with gRPC client
 func (c *ControllerClient) VolumeRevert(snapshot string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -156,6 +166,7 @@ func (c *ControllerClient) VolumeRevert(snapshot string) error {
 	return nil
 }
 
+// VolumeExpand expands volume with gRPC client
 func (c *ControllerClient) VolumeExpand(size int64) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -176,6 +187,7 @@ func (c *ControllerClient) VolumeExpand(size int64) error {
 	return nil
 }
 
+// VolumeFrontendStart starts frontend with gRPC client
 func (c *ControllerClient) VolumeFrontendStart(frontend string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -196,6 +208,7 @@ func (c *ControllerClient) VolumeFrontendStart(frontend string) error {
 	return nil
 }
 
+// VolumeFrontendShutdown shutdown frontend with gRPC client
 func (c *ControllerClient) VolumeFrontendShutdown() error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -214,6 +227,7 @@ func (c *ControllerClient) VolumeFrontendShutdown() error {
 	return nil
 }
 
+// ReplicaList gets replica list with gRPC client
 func (c *ControllerClient) ReplicaList() ([]*types.ControllerReplicaInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -238,6 +252,7 @@ func (c *ControllerClient) ReplicaList() ([]*types.ControllerReplicaInfo, error)
 	return replicas, nil
 }
 
+// ReplicaGet gets replica with gRPC client
 func (c *ControllerClient) ReplicaGet(address string) (*types.ControllerReplicaInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -259,6 +274,7 @@ func (c *ControllerClient) ReplicaGet(address string) (*types.ControllerReplicaI
 	return GetControllerReplicaInfo(cr), nil
 }
 
+// ReplicaCreate creates replica with gRPC client
 func (c *ControllerClient) ReplicaCreate(address string, snapshotRequired bool, mode types.Mode) (*types.ControllerReplicaInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -282,6 +298,7 @@ func (c *ControllerClient) ReplicaCreate(address string, snapshotRequired bool, 
 	return GetControllerReplicaInfo(cr), nil
 }
 
+// ReplicaDelete deletes replica with gRPC client
 func (c *ControllerClient) ReplicaDelete(address string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -302,6 +319,7 @@ func (c *ControllerClient) ReplicaDelete(address string) error {
 	return nil
 }
 
+// ReplicaUpdate updates replica with gRPC client
 func (c *ControllerClient) ReplicaUpdate(replica *types.ControllerReplicaInfo) (*types.ControllerReplicaInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -321,6 +339,7 @@ func (c *ControllerClient) ReplicaUpdate(replica *types.ControllerReplicaInfo) (
 	return GetControllerReplicaInfo(cr), nil
 }
 
+// ReplicaPrepareRebuild prepare rebuild replica with gRPC client
 func (c *ControllerClient) ReplicaPrepareRebuild(address string) ([]types.SyncFileInfo, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -342,6 +361,7 @@ func (c *ControllerClient) ReplicaPrepareRebuild(address string) ([]types.SyncFi
 	return GetSyncFileInfoList(reply.SyncFileInfoList), nil
 }
 
+// ReplicaVerifyRebuild verify replica rebuilt with gRPC client
 func (c *ControllerClient) ReplicaVerifyRebuild(address string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -362,6 +382,7 @@ func (c *ControllerClient) ReplicaVerifyRebuild(address string) error {
 	return nil
 }
 
+// JournalList get a list of volume journal with gRPC client
 func (c *ControllerClient) JournalList(limit int) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -382,6 +403,7 @@ func (c *ControllerClient) JournalList(limit int) error {
 	return nil
 }
 
+// VersionDetailGet get version detail with gRPC client
 func (c *ControllerClient) VersionDetailGet() (*meta.VersionOutput, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -412,6 +434,7 @@ func (c *ControllerClient) VersionDetailGet() (*meta.VersionOutput, error) {
 
 }
 
+// Check the health for gRPC controller server with gRPC client
 func (c *ControllerClient) Check() error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -437,6 +460,7 @@ func (c *ControllerClient) Check() error {
 	return nil
 }
 
+// BackupReplicaMappingCreate creates backup replica mapping with gRPC client
 func (c *ControllerClient) BackupReplicaMappingCreate(backupID string, replicaAddress string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -458,6 +482,7 @@ func (c *ControllerClient) BackupReplicaMappingCreate(backupID string, replicaAd
 	return nil
 }
 
+// BackupReplicaMappingGet gets the backup replica mapping with gRPC client
 func (c *ControllerClient) BackupReplicaMappingGet() (map[string]string, error) {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {
@@ -477,6 +502,7 @@ func (c *ControllerClient) BackupReplicaMappingGet() (map[string]string, error) 
 	return br.BackupReplicaMap, nil
 }
 
+// BackupReplicaMappingDelete deletes the backup replica mapping with gRPC client
 func (c *ControllerClient) BackupReplicaMappingDelete(backupID string) error {
 	conn, err := grpc.Dial(c.grpcAddress, grpc.WithInsecure())
 	if err != nil {

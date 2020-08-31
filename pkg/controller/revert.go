@@ -11,6 +11,7 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/util"
 )
 
+// Revert snapshot for the given name with gRPC client
 func (c *Controller) Revert(name string) error {
 	doable := false
 	rw := false
@@ -63,6 +64,12 @@ func (c *Controller) Revert(name string) error {
 	return nil
 }
 
+// clientsAndSnapshot populates and return an object with the
+// client.ReplicaClient maps to the replica address for all Controller replicas
+// returns error if any replica is WO
+// skip replica RW
+// returns error if replica starts with tcp://
+// returns any error encountered
 func (c *Controller) clientsAndSnapshot(name string) (map[string]*client.ReplicaClient, string, error) {
 	clients := map[string]*client.ReplicaClient{}
 

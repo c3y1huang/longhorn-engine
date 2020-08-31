@@ -49,6 +49,7 @@ func (b *BackendError) Error() string {
 	}
 }
 
+// AddBackend populates the writer and readers for the given address
 func (r *replicator) AddBackend(address string, backend types.Backend, mode types.Mode) {
 	if _, ok := r.backends[address]; ok {
 		return
@@ -68,6 +69,8 @@ func (r *replicator) AddBackend(address string, backend types.Backend, mode type
 	r.buildReadWriters()
 }
 
+// RemoveBackend closes backend for the driver and remove from the replicatior
+// object
 func (r *replicator) RemoveBackend(address string) {
 	backend, ok := r.backends[address]
 	if !ok {
@@ -117,6 +120,7 @@ func (r *replicator) ReadAt(buf []byte, off int64) (int, error) {
 	return n, nil
 }
 
+// WriteAt writes the data byte at the offset for the replicator driver
 func (r *replicator) WriteAt(p []byte, off int64) (int, error) {
 	if !r.backendsAvailable {
 		return 0, ErrNoBackend
@@ -140,6 +144,7 @@ func (r *replicator) WriteAt(p []byte, off int64) (int, error) {
 	return n, err
 }
 
+// buildReadWriters populates replicator writer and reader with fd stream
 func (r *replicator) buildReadWriters() {
 	r.reset(false)
 
@@ -181,6 +186,7 @@ func (r *replicator) SetMode(address string, mode types.Mode) {
 	r.buildReadWriters()
 }
 
+// Snapshot creates snapshots with go routine
 func (r *replicator) Snapshot(name string, userCreated bool, created string, labels map[string]string) error {
 	retErrorLock := sync.Mutex{}
 	retError := &BackendError{
@@ -315,6 +321,7 @@ type backendWrapper struct {
 	mode    types.Mode
 }
 
+// RemainSnapshots get valid number of remain snapshot
 func (r *replicator) RemainSnapshots() (int, error) {
 	// addReplica may call here even without any backend
 	if len(r.backends) == 0 {
@@ -340,6 +347,9 @@ func (r *replicator) RemainSnapshots() (int, error) {
 	return ret, nil
 }
 
+// SetRevisionCounter sets backend revision counter or returns error if
+// the given address not exist in backend or error encountered during setting
+// of backend revision counter
 func (r *replicator) SetRevisionCounter(address string, counter int64) error {
 	backend, ok := r.backends[address]
 	if !ok {
@@ -355,6 +365,9 @@ func (r *replicator) SetRevisionCounter(address string, counter int64) error {
 	return nil
 }
 
+// GetRevisionCounter returns backend revision counter, returns -1 if given
+// address not exist in backend or 0 if error encountered to get revision
+// counter
 func (r *replicator) GetRevisionCounter(address string) (int64, error) {
 	backend, ok := r.backends[address]
 	if !ok {
