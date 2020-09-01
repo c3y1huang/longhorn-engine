@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/go-rancher/client"
 )
 
+// ListVolumes write list contains single Volume object in response
 func (s *Server) ListVolumes(rw http.ResponseWriter, req *http.Request) error {
 	apiContext := api.GetApiContext(req)
 	apiContext.Write(&client.GenericCollection{
@@ -19,6 +20,7 @@ func (s *Server) ListVolumes(rw http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+// GetVolume respond with Volume for the given id in request
 func (s *Server) GetVolume(rw http.ResponseWriter, req *http.Request) error {
 	apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
@@ -33,6 +35,7 @@ func (s *Server) GetVolume(rw http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+// ReadAt respond with Volume data for the given Volume id and offset
 func (s *Server) ReadAt(rw http.ResponseWriter, req *http.Request) error {
 	var input ReadInput
 
@@ -66,6 +69,7 @@ func (s *Server) ReadAt(rw http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+// WriteAt reads the data from request and writes to the backend
 func (s *Server) WriteAt(rw http.ResponseWriter, req *http.Request) error {
 	var input WriteInput
 
@@ -102,12 +106,14 @@ func (s *Server) WriteAt(rw http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+// listVolumes returns a list contains single Volume object
 func (s *Server) listVolumes(context *api.ApiContext) []*Volume {
 	return []*Volume{
 		NewVolume(context, s.d.Name),
 	}
 }
 
+// getVolume return Volume for the given id
 func (s *Server) getVolume(context *api.ApiContext, id string) *Volume {
 	for _, v := range s.listVolumes(context) {
 		if v.Id == id {

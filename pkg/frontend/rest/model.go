@@ -34,6 +34,7 @@ type WriteOutput struct {
 	client.Resource
 }
 
+// NewVolume populates and returns the Volume object
 func NewVolume(context *api.ApiContext, name string) *Volume {
 	v := &Volume{
 		Resource: client.Resource{
@@ -49,6 +50,7 @@ func NewVolume(context *api.ApiContext, name string) *Volume {
 	return v
 }
 
+// DecodeID returns the decode byte array in string for the given id
 func DecodeID(id string) (string, error) {
 	b, err := DecodeData(id)
 	if err != nil {
@@ -57,9 +59,12 @@ func DecodeID(id string) (string, error) {
 	return string(b), nil
 }
 
+// EncodeID returns the base64 encode of the given id 
 func EncodeID(id string) string {
 	return EncodeData([]byte(id))
 }
+
+// DecodeData returns the decodes byte array from the given string
 func DecodeData(data string) ([]byte, error) {
 	b, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
@@ -68,10 +73,12 @@ func DecodeData(data string) ([]byte, error) {
 	return b, nil
 }
 
+// EncodeData the base64 encode string for the given byte array
 func EncodeData(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
+// NewSchema returns schema
 func NewSchema() *client.Schemas {
 	schemas := &client.Schemas{}
 
@@ -98,10 +105,12 @@ func NewSchema() *client.Schemas {
 	return schemas
 }
 
+// Server object
 type Server struct {
 	d *Device
 }
 
+// NewServer returns new Server for the given Device
 func NewServer(d *Device) *Server {
 	return &Server{
 		d: d,

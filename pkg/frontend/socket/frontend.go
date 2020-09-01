@@ -20,6 +20,7 @@ const (
 	DevPath         = "/dev/longhorn/"
 )
 
+// New return new Socket
 func New() *Socket {
 	return &Socket{}
 }
@@ -34,10 +35,12 @@ type Socket struct {
 	socketServer *dataconn.Server
 }
 
+// FrontendName returns "socket"
 func (t *Socket) FrontendName() string {
 	return frontendName
 }
 
+// Init populates the Socket object and shuts down the socket server
 func (t *Socket) Init(name string, size, sectorSize int64) error {
 	t.Volume = name
 	t.Size = size
@@ -46,6 +49,7 @@ func (t *Socket) Init(name string, size, sectorSize int64) error {
 	return t.Shutdown()
 }
 
+// Startup starts the socket server
 func (t *Socket) Startup(rw types.ReaderWriterAt) error {
 	if err := t.startSocketServer(rw); err != nil {
 		return err
@@ -56,6 +60,7 @@ func (t *Socket) Startup(rw types.ReaderWriterAt) error {
 	return nil
 }
 
+// Shutdown stops socket server if Volume exist and socketServer exist
 func (t *Socket) Shutdown() error {
 	if t.Volume != "" {
 		if t.socketServer != nil {
@@ -69,6 +74,7 @@ func (t *Socket) Shutdown() error {
 	return nil
 }
 
+// State returns socket state if socket is up
 func (t *Socket) State() types.State {
 	if t.isUp {
 		return types.StateUp
@@ -76,6 +82,7 @@ func (t *Socket) State() types.State {
 	return types.StateDown
 }
 
+// Endpoint returns the socket path if socket is up
 func (t *Socket) Endpoint() string {
 	if t.isUp {
 		return t.GetSocketPath()
@@ -83,6 +90,7 @@ func (t *Socket) Endpoint() string {
 	return ""
 }
 
+// GetSocketPath returns longhorn socket path
 func (t *Socket) GetSocketPath() string {
 	if t.Volume == "" {
 		panic("Invalid volume name")
@@ -90,6 +98,7 @@ func (t *Socket) GetSocketPath() string {
 	return filepath.Join(SocketDirectory, "longhorn-"+t.Volume+".sock")
 }
 
+// startSocketServer creates socket directory abd remove existing socket path and 
 func (t *Socket) startSocketServer(rw types.ReaderWriterAt) error {
 	socketPath := t.GetSocketPath()
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0700); err != nil {
@@ -107,6 +116,8 @@ func (t *Socket) startSocketServer(rw types.ReaderWriterAt) error {
 	return nil
 }
 
+// startSocketServerListen listens to the socker path and starts infinite loop
+// processing server requests
 func (t *Socket) startSocketServerListen(rw types.ReaderWriterAt) error {
 	ln, err := net.Listen("unix", t.socketPath)
 	if err != nil {
@@ -124,6 +135,8 @@ func (t *Socket) startSocketServerListen(rw types.ReaderWriterAt) error {
 	}
 }
 
+// handleServerConnection starts new server and handles the request read and
+// write
 func (t *Socket) handleServerConnection(c net.Conn, rw types.ReaderWriterAt) {
 	defer c.Close()
 
@@ -136,32 +149,41 @@ func (t *Socket) handleServerConnection(c net.Conn, rw types.ReaderWriterAt) {
 	}
 }
 
+// DataProcessorWrapper object
 type DataProcessorWrapper struct {
 	rw types.ReaderWriterAt
 }
 
+// NewDataProcessorWrapper returns new DataProcessorWrapper
 func NewDataProcessorWrapper(rw types.ReaderWriterAt) DataProcessorWrapper {
 	return DataProcessorWrapper{
 		rw: rw,
 	}
 }
 
+// ReadAt returns the DataProcessorWrapper to read at the given offset to the
+// data byte
 func (d DataProcessorWrapper) ReadAt(p []byte, off int64) (n int, err error) {
 	return d.rw.ReadAt(p, off)
 }
 
+// WriteAt returns the DataProcessorWrapper ti read at the given offset and
+// writes to the backend
 func (d DataProcessorWrapper) WriteAt(p []byte, off int64) (n int, err error) {
 	return d.rw.WriteAt(p, off)
 }
 
+// PingResponse returns nil
 func (d DataProcessorWrapper) PingResponse() error {
 	return nil
 }
 
+// Upgrade not supported
 func (t *Socket) Upgrade(name string, size, sectorSize int64, rw types.ReaderWriterAt) error {
 	return fmt.Errorf("Upgrade is not supported")
 }
 
+// Expand not supported
 func (t *Socket) Expand(size int64) error {
 	return fmt.Errorf("Expand is not supported")
 }

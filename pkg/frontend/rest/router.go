@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/go-rancher/client"
 )
 
+// HandleError creates API context and respond request with error
 func HandleError(s *client.Schemas, t func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return api.ApiHandler(s, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if err := t(rw, req); err != nil {
@@ -17,6 +18,7 @@ func HandleError(s *client.Schemas, t func(http.ResponseWriter, *http.Request) e
 	}))
 }
 
+// NewRouter registers routes for the method
 func NewRouter(s *Server) *mux.Router {
 	schemas := NewSchema()
 	router := mux.NewRouter().StrictSlash(true)
