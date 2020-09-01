@@ -19,7 +19,7 @@ var (
 	opRetries      = 2
 	opReadTimeout  = 4 * time.Second // client read
 	opWriteTimeout = 4 * time.Second // client write
-	opPingTimeout  = 8 * time.Second
+	opPingTimeout  = 8 * time.Second // client ping
 )
 
 //Client replica client
@@ -80,6 +80,7 @@ func (c *Client) Ping() error {
 	return err
 }
 
+// operation handles the given op operation
 func (c *Client) operation(op uint32, buf []byte, offset int64) (int, error) {
 	retry := 0
 	for {
@@ -151,6 +152,8 @@ func (c *Client) Close() {
 	c.end <- struct{}{}
 }
 
+// loop infinately to handle changel request and response, close when receives
+// channel end
 func (c *Client) loop() {
 	defer close(c.send)
 
@@ -166,11 +169,14 @@ func (c *Client) loop() {
 	}
 }
 
+// nexSeq returns the nex Client seq
 func (c *Client) nextSeq() uint32 {
 	c.seq++
 	return c.seq
 }
 
+// replyError sets request to TypeError and update error message to request
+// data and sends request Complete to channel
 func (c *Client) replyError(req *Message) {
 	journal.RemovePendingOp(req.ID, false)
 	delete(c.messages, req.Seq)
@@ -179,6 +185,7 @@ func (c *Client) replyError(req *Message) {
 	req.Complete <- struct{}{}
 }
 
+// handleRequest for the given request Type
 func (c *Client) handleRequest(req *Message) {
 	switch req.Type {
 	case TypeRead:
@@ -199,6 +206,7 @@ func (c *Client) handleRequest(req *Message) {
 	c.send <- req
 }
 
+// handleResponse update request object and sents request complete channel
 func (c *Client) handleResponse(resp *Message) {
 	if resp.transportErr != nil {
 		c.err = resp.transportErr
@@ -224,6 +232,7 @@ func (c *Client) handleResponse(resp *Message) {
 	}
 }
 
+// write message to data buffer
 func (c *Client) write() {
 	for msg := range c.send {
 		if err := c.wire.Write(msg); err != nil {
@@ -234,6 +243,7 @@ func (c *Client) write() {
 	}
 }
 
+// read channel message to response
 func (c *Client) read() {
 	for {
 		msg, err := c.wire.Read()

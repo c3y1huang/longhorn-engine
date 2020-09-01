@@ -22,6 +22,7 @@ func NewWire(conn net.Conn) *Wire {
 	}
 }
 
+// Write buffered msge to the Wire io,Writer
 func (w *Wire) Write(msg *Message) error {
 	if err := binary.Write(w.writer, binary.LittleEndian, msg.MagicVersion); err != nil {
 		return err
@@ -49,6 +50,7 @@ func (w *Wire) Write(msg *Message) error {
 	return w.writer.Flush()
 }
 
+// Read returns Message from id.Reader in Wire
 func (w *Wire) Read() (*Message, error) {
 	var (
 		msg    Message
@@ -88,6 +90,7 @@ func (w *Wire) Read() (*Message, error) {
 	return &msg, nil
 }
 
+// Close the Wire connection
 func (w *Wire) Close() error {
 	return w.conn.Close()
 }

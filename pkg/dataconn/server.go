@@ -16,6 +16,7 @@ type Server struct {
 	data      types.DataProcessor
 }
 
+// NewServer turns new Server
 func NewServer(conn net.Conn, data types.DataProcessor) *Server {
 	return &Server{
 		wire:      NewWire(conn),
@@ -25,6 +26,7 @@ func NewServer(conn net.Conn, data types.DataProcessor) *Server {
 	}
 }
 
+// Handle starts the infinite look for to read and write from Server
 func (s *Server) Handle() error {
 	go s.write()
 	defer func() {
@@ -33,6 +35,7 @@ func (s *Server) Handle() error {
 	return s.read()
 }
 
+// readFromWrite reads messages and handles by its type
 func (s *Server) readFromWire(ret chan<- error) {
 	msg, err := s.wire.Read()
 	if err == io.EOF {
@@ -54,6 +57,7 @@ func (s *Server) readFromWire(ret chan<- error) {
 	ret <- nil
 }
 
+// read starts infinate loop to read
 func (s *Server) read() error {
 	ret := make(chan error)
 	for {
@@ -72,26 +76,31 @@ func (s *Server) read() error {
 	}
 }
 
+// Stop sends channel .done
 func (s *Server) Stop() {
 	s.done <- struct{}{}
 }
 
+// handleRead reads the data at the offset and update the Server response
 func (s *Server) handleRead(msg *Message) {
 	msg.Data = make([]byte, msg.Size)
 	c, err := s.data.ReadAt(msg.Data, msg.Offset)
 	s.pushResponse(c, msg, err)
 }
 
+// handleWrite writes the data to the offset and update the Server response
 func (s *Server) handleWrite(msg *Message) {
 	c, err := s.data.WriteAt(msg.Data, msg.Offset)
 	s.pushResponse(c, msg, err)
 }
 
+// handlePing handles ping and update to the Server response
 func (s *Server) handlePing(msg *Message) {
 	err := s.data.PingResponse()
 	s.pushResponse(0, msg, err)
 }
 
+// pushResponse updates given message to Server response
 func (s *Server) pushResponse(count int, msg *Message, err error) {
 	msg.MagicVersion = MagicVersion
 	msg.Size = uint32(len(msg.Data))
@@ -112,6 +121,8 @@ func (s *Server) pushResponse(count int, msg *Message, err error) {
 	s.responses <- msg
 }
 
+// write starts infinate loop to write the message to response or stop when
+// receive .done channel
 func (s *Server) write() {
 	for {
 		select {
