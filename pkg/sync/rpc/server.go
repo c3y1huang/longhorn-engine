@@ -65,16 +65,19 @@ type SyncAgentServer struct {
 	RebuildStatus *RebuildStatus
 }
 
+// BackupList object
 type BackupList struct {
 	sync.RWMutex
 	backups []*BackupInfo
 }
 
+// BackupInfo object
 type BackupInfo struct {
 	backupID     string
 	backupStatus *replica.BackupStatus
 }
 
+// PurgeStatus object
 type PurgeStatus struct {
 	sync.RWMutex
 	Error    string
@@ -85,6 +88,7 @@ type PurgeStatus struct {
 	total     int
 }
 
+// UpdateFoldFileProgress update the PurgeStatus progress
 func (ps *PurgeStatus) UpdateFoldFileProgress(progress int, done bool, err error) {
 	ps.Lock()
 	// Avoid possible division by zero, also total 0 means nothing to be done
@@ -96,6 +100,7 @@ func (ps *PurgeStatus) UpdateFoldFileProgress(progress int, done bool, err error
 	ps.Unlock()
 }
 
+// RebuildStatus object
 type RebuildStatus struct {
 	sync.RWMutex
 	Error              string
@@ -107,6 +112,7 @@ type RebuildStatus struct {
 	totalSize     int64
 }
 
+// UpdateSyncFileProgress
 func (rs *RebuildStatus) UpdateSyncFileProgress(size int64) {
 	rs.Lock()
 	rs.processedSize = rs.processedSize + size
