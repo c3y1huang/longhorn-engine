@@ -36,17 +36,24 @@ import (
  */
 
 const (
+	// MaxBackupSize it the number of complete backup to keep in the BackupList
 	MaxBackupSize = 5
 
+	// PeriodicRefreshIntervalInSeconds is the number of wait time in second for
+	// each tick
 	PeriodicRefreshIntervalInSeconds = 2
 
+	// GRPCServiceCommonTimeout common timeout
 	GRPCServiceCommonTimeout = 1 * time.Minute
 
+	// FileSyncTimeout is the timeout in seconds
 	FileSyncTimeout = 120
 
+	// VolumeHeadName is the file name of the volume head
 	VolumeHeadName = "volume-head"
 )
 
+// SyncAgentServer object
 type SyncAgentServer struct {
 	sync.RWMutex
 
@@ -88,7 +95,7 @@ type PurgeStatus struct {
 	total     int
 }
 
-// UpdateFoldFileProgress update the PurgeStatus progress
+// UpdateFoldFileProgress update the PurgeStatus processed progress
 func (ps *PurgeStatus) UpdateFoldFileProgress(progress int, done bool, err error) {
 	ps.Lock()
 	// Avoid possible division by zero, also total 0 means nothing to be done
@@ -112,7 +119,7 @@ type RebuildStatus struct {
 	totalSize     int64
 }
 
-// UpdateSyncFileProgress
+// UpdateSyncFileProgress updates the processed size progress
 func (rs *RebuildStatus) UpdateSyncFileProgress(size int64) {
 	rs.Lock()
 	rs.processedSize = rs.processedSize + size
@@ -120,6 +127,7 @@ func (rs *RebuildStatus) UpdateSyncFileProgress(size int64) {
 	rs.Unlock()
 }
 
+// GetDiskInfo returns a new DiskInfo
 func GetDiskInfo(info *ptypes.DiskInfo) *types.DiskInfo {
 	diskInfo := &types.DiskInfo{
 		Name:        info.Name,
@@ -139,6 +147,7 @@ func GetDiskInfo(info *ptypes.DiskInfo) *types.DiskInfo {
 	return diskInfo
 }
 
+// NewSyncAgentServer returns a new SyncAgentServer
 func NewSyncAgentServer(startPort, endPort int, replicaAddress string) *SyncAgentServer {
 	return &SyncAgentServer{
 		currentPort:     startPort,
@@ -154,6 +163,8 @@ func NewSyncAgentServer(startPort, endPort int, replicaAddress string) *SyncAgen
 	}
 }
 
+// nextPort maps processName to the available port within the start and end
+// port
 func (s *SyncAgentServer) nextPort(processName string) (int, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -178,12 +189,15 @@ func (s *SyncAgentServer) nextPort(processName string) (int, error) {
 	return 0, errors.New("Out of ports")
 }
 
+// IsRestoring returns SysncAgentServer.isRestoring
 func (s *SyncAgentServer) IsRestoring() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.isRestoring
 }
 
+// StartRestore perform incremental restore or full restore depends if last
+// restore is found
 func (s *SyncAgentServer) StartRestore(backupURL, requestedBackupName, snapshotDiskName string) (err error) {
 	s.Lock()
 	defer s.Unlock()
@@ -251,6 +265,7 @@ func (s *SyncAgentServer) StartRestore(backupURL, requestedBackupName, snapshotD
 	return nil
 }
 
+// canDoIncrementalRestore validates the last restore backup
 func (s *SyncAgentServer) canDoIncrementalRestore(restoreStatus *replica.RestoreStatus, backupURL, requestedBackupName string) bool {
 	if restoreStatus.LastRestored == "" {
 		logrus.Warnf("There is a restore record in the server but last restored backup is empty with restore state is %v, will do full restore instead", restoreStatus.State)
@@ -263,6 +278,7 @@ func (s *SyncAgentServer) canDoIncrementalRestore(restoreStatus *replica.Restore
 	return true
 }
 
+// FinishRestore set isRestoring to faule and update teh restore status
 func (s *SyncAgentServer) FinishRestore(restoreErr error) (err error) {
 	s.Lock()
 	defer s.Unlock()
@@ -292,6 +308,7 @@ func (s *SyncAgentServer) FinishRestore(restoreErr error) (err error) {
 	return nil
 }
 
+// Reset updates the SyncAgent object and returns empty message
 func (s *SyncAgentServer) Reset(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -307,6 +324,7 @@ func (s *SyncAgentServer) Reset(ctx context.Context, req *empty.Empty) (*empty.E
 	return &empty.Empty{}, nil
 }
 
+// FileRemove delete quested file and returns empty message
 func (*SyncAgentServer) FileRemove(ctx context.Context, req *ptypes.FileRemoveRequest) (*empty.Empty, error) {
 	logrus.Infof("Running rm %v", req.FileName)
 
@@ -319,6 +337,7 @@ func (*SyncAgentServer) FileRemove(ctx context.Context, req *ptypes.FileRemoveRe
 	return &empty.Empty{}, nil
 }
 
+// FileRename renames the host file and returns empty message
 func (*SyncAgentServer) FileRename(ctx context.Context, req *ptypes.FileRenameRequest) (*empty.Empty, error) {
 	logrus.Infof("Running rename file from %v to %v", req.OldFileName, req.NewFileName)
 
@@ -331,6 +350,7 @@ func (*SyncAgentServer) FileRename(ctx context.Context, req *ptypes.FileRenameRe
 	return &empty.Empty{}, nil
 }
 
+// FileSend syncs file to remote host, returns empty message
 func (s *SyncAgentServer) FileSend(ctx context.Context, req *ptypes.FileSendRequest) (*empty.Empty, error) {
 	address := net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	logrus.Infof("Sending file %v to %v", req.FromFileName, address)
@@ -342,6 +362,7 @@ func (s *SyncAgentServer) FileSend(ctx context.Context, req *ptypes.FileSendRequ
 	return &empty.Empty{}, nil
 }
 
+// ReceiverLaunch starts a HTTP ssync server the the request file
 func (s *SyncAgentServer) ReceiverLaunch(ctx context.Context, req *ptypes.ReceiverLaunchRequest) (*ptypes.ReceiverLaunchResponse, error) {
 	port, err := s.launchReceiver("ReceiverLaunch", req.ToFileName, &sparserest.SyncFileStub{})
 	if err != nil {
@@ -352,6 +373,7 @@ func (s *SyncAgentServer) ReceiverLaunch(ctx context.Context, req *ptypes.Receiv
 	return &ptypes.ReceiverLaunchResponse{Port: int32(port)}, nil
 }
 
+// launchReceiver starts a HTTP ssync server for the file
 func (s *SyncAgentServer) launchReceiver(processName, toFileName string, ops sparserest.SyncFileOperations) (int, error) {
 	port, err := s.nextPort(processName)
 	if err != nil {
@@ -376,6 +398,7 @@ func (s *SyncAgentServer) launchReceiver(processName, toFileName string, ops spa
 	return port, nil
 }
 
+// FilesSync sends file to host
 func (s *SyncAgentServer) FilesSync(ctx context.Context, req *ptypes.FilesSyncRequest) (res *empty.Empty, err error) {
 	if err := s.PrepareRebuild(req.SyncFileInfoList, req.FromAddress); err != nil {
 		return nil, err
@@ -425,6 +448,7 @@ func (s *SyncAgentServer) FilesSync(ctx context.Context, req *ptypes.FilesSyncRe
 	return &empty.Empty{}, nil
 }
 
+// PrepareRebuild update the SyncAgentServer.RebuildStatus
 func (s *SyncAgentServer) PrepareRebuild(list []*ptypes.SyncFileInfo, fromReplicaAddress string) error {
 	s.Lock()
 	defer s.Unlock()
@@ -451,6 +475,7 @@ func (s *SyncAgentServer) PrepareRebuild(list []*ptypes.SyncFileInfo, fromReplic
 	return nil
 }
 
+// FinishRebuild update the SyncAgentServer.isRebuilding to false
 func (s *SyncAgentServer) FinishRebuild() error {
 	s.Lock()
 	defer s.Unlock()
@@ -463,6 +488,7 @@ func (s *SyncAgentServer) FinishRebuild() error {
 	return nil
 }
 
+// IsRebuilding returns SyncAgentServer.IsRebuilding
 func (s *SyncAgentServer) IsRebuilding() bool {
 	s.RLock()
 	defer s.RUnlock()
@@ -470,6 +496,7 @@ func (s *SyncAgentServer) IsRebuilding() bool {
 	return s.isRebuilding
 }
 
+// ReplicaRebuildStatus returns new ReplicaRebuildStatusResponse
 func (s *SyncAgentServer) ReplicaRebuildStatus(ctx context.Context, req *empty.Empty) (*ptypes.ReplicaRebuildStatusResponse, error) {
 	isRebuilding := s.IsRebuilding()
 
@@ -484,6 +511,7 @@ func (s *SyncAgentServer) ReplicaRebuildStatus(ctx context.Context, req *empty.E
 	}, nil
 }
 
+// BackupCreate creates backup and update the backup object
 func (s *SyncAgentServer) BackupCreate(ctx context.Context, req *ptypes.BackupCreateRequest) (*ptypes.BackupCreateResponse, error) {
 	backupType, err := util.CheckBackupType(req.BackupTarget)
 	if err != nil {
@@ -530,6 +558,7 @@ func (s *SyncAgentServer) BackupCreate(ctx context.Context, req *ptypes.BackupCr
 	return resp, nil
 }
 
+// BackupStatus returns new BackupStatusReponse for the req.Backup
 func (s *SyncAgentServer) BackupStatus(ctx context.Context, req *ptypes.BackupStatusRequest) (*ptypes.BackupStatusResponse, error) {
 	if req.Backup == "" {
 		return nil, fmt.Errorf("bad request: empty backup name")
@@ -555,6 +584,7 @@ func (s *SyncAgentServer) BackupStatus(ctx context.Context, req *ptypes.BackupSt
 	return resp, nil
 }
 
+// BackupRemove execute "sbackup" to remove the request backup
 func (*SyncAgentServer) BackupRemove(ctx context.Context, req *ptypes.BackupRemoveRequest) (*empty.Empty, error) {
 	cmd := reexec.Command("sbackup", "delete", req.Backup)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -576,6 +606,8 @@ func (*SyncAgentServer) BackupRemove(ctx context.Context, req *ptypes.BackupRemo
 	return &empty.Empty{}, nil
 }
 
+// waitForRestoreComplete starts a newTicker checkes restore progress per second
+// and stops channel if restore progress reach 100 or error
 func (s *SyncAgentServer) waitForRestoreComplete() error {
 	var (
 		restoreProgress int
@@ -603,6 +635,7 @@ func (s *SyncAgentServer) waitForRestoreComplete() error {
 	return nil
 }
 
+// BackupRestore uncompress the and restore the blocks from driver fd stream
 func (s *SyncAgentServer) BackupRestore(ctx context.Context, req *ptypes.BackupRestoreRequest) (e *empty.Empty, err error) {
 	// Check request
 	if req.SnapshotDiskName == "" {
@@ -650,6 +683,7 @@ func (s *SyncAgentServer) BackupRestore(ctx context.Context, req *ptypes.BackupR
 	return &empty.Empty{}, nil
 }
 
+// completeBackupRestore
 func (s *SyncAgentServer) completeBackupRestore() (err error) {
 	defer func() {
 		if extraErr := s.FinishRestore(err); extraErr != nil {
@@ -741,6 +775,8 @@ func (s *SyncAgentServer) extraIncrementalFullRestoreOperations(restoreStatus *r
 	return nil
 }
 
+// postIncrementalRestoreOperations coalesce the delta file to snapshot file,
+// reload the replica with gRPC client and remove the delta file
 func (s *SyncAgentServer) postIncrementalRestoreOperations(restoreStatus *replica.RestoreStatus) error {
 	deltaFileName := restoreStatus.ToFileName
 	logrus.Infof("Cleaning up incremental restore by Coalescing and removing the delta file")
@@ -767,6 +803,7 @@ func (s *SyncAgentServer) postIncrementalRestoreOperations(restoreStatus *replic
 	return nil
 }
 
+// reloadReplica calls ReplicaReload with gRPC client
 func (s *SyncAgentServer) reloadReplica() error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -785,6 +822,7 @@ func (s *SyncAgentServer) reloadReplica() error {
 	return nil
 }
 
+// replicaRevert calles ReplicaRevert with gRPC client
 func (s *SyncAgentServer) replicaRevert(name, created string) error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -806,6 +844,7 @@ func (s *SyncAgentServer) replicaRevert(name, created string) error {
 	return nil
 }
 
+// RestoreStatus returns new RestoreStatusResponse
 func (s *SyncAgentServer) RestoreStatus(ctx context.Context, req *empty.Empty) (*ptypes.RestoreStatusResponse, error) {
 	resp := ptypes.RestoreStatusResponse{
 		IsRestoring: s.IsRestoring(),
@@ -826,6 +865,7 @@ func (s *SyncAgentServer) RestoreStatus(ctx context.Context, req *empty.Empty) (
 	return &resp, nil
 }
 
+// SnapshotPurge resets the SyncAgentServer.PurgeStatus purges all snapshots
 func (s *SyncAgentServer) SnapshotPurge(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	if err := s.PreparePurge(); err != nil {
 		return nil, err
@@ -836,6 +876,7 @@ func (s *SyncAgentServer) SnapshotPurge(ctx context.Context, req *empty.Empty) (
 	return &empty.Empty{}, nil
 }
 
+// purgeSnapshots loop through all leaves and remove them
 func (s *SyncAgentServer) purgeSnapshots() (err error) {
 	defer func() {
 		s.PurgeStatus.Lock()
@@ -928,6 +969,7 @@ func (s *SyncAgentServer) purgeSnapshots() (err error) {
 	return nil
 }
 
+// SnapshotPurgeStatus returns new SnapshotPurgeStatusResponse
 func (s *SyncAgentServer) SnapshotPurgeStatus(ctx context.Context, req *empty.Empty) (*ptypes.SnapshotPurgeStatusResponse, error) {
 	isPurging := s.IsPurging()
 
@@ -941,6 +983,7 @@ func (s *SyncAgentServer) SnapshotPurgeStatus(ctx context.Context, req *empty.Em
 	}, nil
 }
 
+// PreparePurge reset the SysncAgentServer.PurgeStatus
 func (s *SyncAgentServer) PreparePurge() error {
 	s.Lock()
 	defer s.Unlock()
@@ -962,6 +1005,7 @@ func (s *SyncAgentServer) PreparePurge() error {
 	return nil
 }
 
+// FinishPurge updated the SyncAgentServer.isPurging to false
 func (s *SyncAgentServer) FinishPurge() error {
 	s.Lock()
 	defer s.Unlock()
@@ -974,6 +1018,7 @@ func (s *SyncAgentServer) FinishPurge() error {
 	return nil
 }
 
+// IsPurging returns the SyncAgentServer.isPurging
 func (s *SyncAgentServer) IsPurging() bool {
 	s.RLock()
 	defer s.RUnlock()
@@ -981,6 +1026,7 @@ func (s *SyncAgentServer) IsPurging() bool {
 	return s.isPurging
 }
 
+// getSnapshotsInfor returns DiskInfo and the number of the disk removed
 func (s *SyncAgentServer) getSnapshotsInfo() (map[string]types.DiskInfo, int, error) {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -1059,6 +1105,7 @@ func (s *SyncAgentServer) getSnapshotsInfo() (map[string]types.DiskInfo, int, er
 	return newDisks, removedCount, nil
 }
 
+// markSnapshotAsRemoved sends request to gRPC client to mark disk as removed
 func (s *SyncAgentServer) markSnapshotAsRemoved(snapshot string) error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -1079,6 +1126,8 @@ func (s *SyncAgentServer) markSnapshotAsRemoved(snapshot string) error {
 	return nil
 }
 
+// processRemoveSnapshot determines the op.Action with gRPC client and
+// performs either coalesce, remove, or replace snapshot
 func (s *SyncAgentServer) processRemoveSnapshot(snapshot string) error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -1122,6 +1171,7 @@ func (s *SyncAgentServer) processRemoveSnapshot(snapshot string) error {
 	return nil
 }
 
+// replaceDisk sends gRPC client request for DiskReplace
 func (s *SyncAgentServer) replaceDisk(source, target string) error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {
@@ -1143,6 +1193,8 @@ func (s *SyncAgentServer) replaceDisk(source, target string) error {
 	return nil
 }
 
+// rmDisk sends gRPC client request for DiskRemove. This does not force remove
+// the given disk
 func (s *SyncAgentServer) rmDisk(disk string) error {
 	conn, err := grpc.Dial(s.replicaAddress, grpc.WithInsecure())
 	if err != nil {

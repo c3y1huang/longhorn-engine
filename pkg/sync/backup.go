@@ -14,11 +14,13 @@ import (
 	"github.com/longhorn/longhorn-engine/pkg/util"
 )
 
+// BackupCreateInfo object
 type BackupCreateInfo struct {
 	BackupID      string `json:"backupID"`
 	IsIncremental bool   `json:"isIncremental"`
 }
 
+// BackupStatusInfo object
 type BackupStatusInfo struct {
 	Progress       int    `json:"progress"`
 	BackupURL      string `json:"backupURL,omitempty"`
@@ -28,6 +30,7 @@ type BackupStatusInfo struct {
 	ReplicaAddress string `json:"replicaAddress"`
 }
 
+// RestoreStatus object
 type RestoreStatus struct {
 	IsRestoring            bool   `json:"isRestoring"`
 	Progress               int    `json:"progress,omitempty"`
@@ -39,6 +42,8 @@ type RestoreStatus struct {
 	CurrentRestoringBackup string `json:"currentRestoringBackup"`
 }
 
+// CreateBackup creates snapshot backup or any healthy replica and backup 
+// replica mapping with gRPC client
 func (t *Task) CreateBackup(snapshot, dest string, labels []string, credential map[string]string) (*BackupCreateInfo, error) {
 	var replica *types.ControllerReplicaInfo
 
@@ -74,6 +79,8 @@ func (t *Task) CreateBackup(snapshot, dest string, labels []string, credential m
 	return backup, nil
 }
 
+// createBackup creates snapshot backup and backup replica mapping with gRPC
+// client
 func (t *Task) createBackup(replicaInController *types.ControllerReplicaInfo, snapshot, dest, volumeName string, labels []string,
 	credential map[string]string) (*BackupCreateInfo, error) {
 	if replicaInController.Mode != types.RW {
@@ -113,6 +120,7 @@ func (t *Task) createBackup(replicaInController *types.ControllerReplicaInfo, sn
 	return info, nil
 }
 
+// FetchBackupStatus returns new BackupStatusInfo with gRPC client
 func (t *Task) FetchBackupStatus(backupID string, replicaAddr string) (*BackupStatusInfo, error) {
 	repClient, err := replicaClient.NewReplicaClient(replicaAddr)
 	if err != nil {
@@ -139,6 +147,7 @@ func (t *Task) FetchBackupStatus(backupID string, replicaAddr string) (*BackupSt
 	return info, nil
 }
 
+// RestoreBackup restores all replica backups for the Task client
 func (t *Task) RestoreBackup(backup string, credential map[string]string) error {
 	volume, err := t.client.VolumeGet()
 	if err != nil {
@@ -262,6 +271,7 @@ func (t *Task) RestoreBackup(backup string, credential map[string]string) error 
 	return nil
 }
 
+// restoreBackup restores replica backup with gRPC client
 func (t *Task) restoreBackup(replicaInController *types.ControllerReplicaInfo, backup string, snapshotFile string, credential map[string]string) error {
 	if replicaInController.Mode == types.ERR {
 		return fmt.Errorf("can not restore backup from replica in mode ERR")
@@ -278,6 +288,7 @@ func (t *Task) restoreBackup(replicaInController *types.ControllerReplicaInfo, b
 	return nil
 }
 
+// Reset the replica restore status with gRPC client
 func (t *Task) Reset() error {
 	replicas, err := t.client.ReplicaList()
 	if err != nil {
@@ -313,6 +324,8 @@ func (t *Task) Reset() error {
 	return nil
 }
 
+// RestoreStatus gets all replica restore status and returns replicaStatusMap
+// with RestoreStatus mapped to the replica addresses
 func (t *Task) RestoreStatus() (map[string]*RestoreStatus, error) {
 	replicaStatusMap := make(map[string]*RestoreStatus)
 

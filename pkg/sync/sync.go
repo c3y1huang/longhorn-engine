@@ -47,12 +47,14 @@ type ReplicaRebuildStatus struct {
 	FromReplicaAddress string `json:"fromReplicaAddress"`
 }
 
+// NewTaskError returns a new TaskError contains list of the given ReplicaError
 func NewTaskError(res ...ReplicaError) *TaskError {
 	return &TaskError{
 		ReplicaErrors: append([]ReplicaError{}, res...),
 	}
 }
 
+// Error returns errors in single string
 func (e *TaskError) Error() string {
 	var errs []string
 	for _, re := range e.ReplicaErrors {
@@ -68,14 +70,17 @@ func (e *TaskError) Error() string {
 	return strings.Join(errs, "; ")
 }
 
+// Append the given error to the TaskError.ReplicaErrors
 func (e *TaskError) Append(re ReplicaError) {
 	e.ReplicaErrors = append(e.ReplicaErrors, re)
 }
 
+// HasError returns the number of the ReplicaErrors
 func (e *TaskError) HasError() bool {
 	return len(e.ReplicaErrors) != 0
 }
 
+// NewReplicaError returns ReplicaError object
 func NewReplicaError(address string, err error) ReplicaError {
 	return ReplicaError{
 		Address: address,
@@ -83,16 +88,20 @@ func NewReplicaError(address string, err error) ReplicaError {
 	}
 }
 
+// Error returns message "address: error"
 func (e ReplicaError) Error() string {
 	return fmt.Sprintf("%v: %v", e.Address, e.Message)
 }
 
+// NewTask returns new Task contains the gRPC client for the given address
 func NewTask(controller string) *Task {
 	return &Task{
 		client: client.NewControllerClient(controller),
 	}
 }
 
+// DeleteSnapshot ensurea no replicas is rebuilding on client and mark all as
+// removed
 func (t *Task) DeleteSnapshot(snapshot string) error {
 	var err error
 
@@ -118,6 +127,7 @@ func (t *Task) DeleteSnapshot(snapshot string) error {
 	return nil
 }
 
+// PurgeSnapshots purges all replica snapshots with gRPC client
 func (t *Task) PurgeSnapshots(skip bool) error {
 	replicas, err := t.client.ReplicaList()
 	if err != nil {
@@ -176,6 +186,9 @@ func (t *Task) PurgeSnapshots(skip bool) error {
 	return nil
 }
 
+// PurgeSnapshotStatus get all replica snapshot purge status with gRPC client,
+// returns replicaStatusMap with SnapshotPurgeStatus mapped to the replica
+// address
 func (t *Task) PurgeSnapshotStatus() (map[string]*SnapshotPurgeStatus, error) {
 	replicaStatusMap := make(map[string]*SnapshotPurgeStatus)
 
@@ -211,6 +224,7 @@ func (t *Task) PurgeSnapshotStatus() (map[string]*SnapshotPurgeStatus, error) {
 	return replicaStatusMap, nil
 }
 
+// getNameAndIndex returns the given snapshot name if it exist in chain
 func getNameAndIndex(chain []string, snapshot string) (string, int) {
 	index := find(chain, snapshot)
 	if index < 0 {
@@ -225,6 +239,7 @@ func getNameAndIndex(chain []string, snapshot string) (string, int) {
 	return snapshot, index
 }
 
+// isRebuilding returns true if replica is rebuilding
 func (t *Task) isRebuilding(replicaInController *types.ControllerReplicaInfo) (bool, error) {
 	repClient, err := replicaClient.NewReplicaClient(replicaInController.Address)
 	if err != nil {
@@ -239,6 +254,7 @@ func (t *Task) isRebuilding(replicaInController *types.ControllerReplicaInfo) (b
 	return replica.Rebuilding, nil
 }
 
+// isPurgin returns true if replica status is purging
 func (t *Task) isPurging(replicaInController *types.ControllerReplicaInfo) (bool, error) {
 	repClient, err := replicaClient.NewReplicaClient(replicaInController.Address)
 	if err != nil {
@@ -253,6 +269,7 @@ func (t *Task) isPurging(replicaInController *types.ControllerReplicaInfo) (bool
 	return status.IsPurging, nil
 }
 
+// isDirty returns true if replica is dirty
 func (t *Task) isDirty(replicaInController *types.ControllerReplicaInfo) (bool, error) {
 	repClient, err := replicaClient.NewReplicaClient(replicaInController.Address)
 	if err != nil {
@@ -267,6 +284,7 @@ func (t *Task) isDirty(replicaInController *types.ControllerReplicaInfo) (bool, 
 	return replica.Dirty, nil
 }
 
+// markSnapshotAsRemoved mark replica disk as removed with gRPC client
 func (t *Task) markSnapshotAsRemoved(replicaInController *types.ControllerReplicaInfo, snapshot string) error {
 	if replicaInController.Mode != types.RW {
 		return fmt.Errorf("Can only mark snapshot as removed from replica in mode RW, got %s", replicaInController.Mode)
@@ -284,6 +302,7 @@ func (t *Task) markSnapshotAsRemoved(replicaInController *types.ControllerReplic
 	return nil
 }
 
+// find the index of the given item in list
 func find(list []string, item string) int {
 	for i, val := range list {
 		if val == item {
@@ -293,6 +312,7 @@ func find(list []string, item string) int {
 	return -1
 }
 
+// AddRestoreReplica creates replica with gRPC cliet
 func (t *Task) AddRestoreReplica(replica string) error {
 	volume, err := t.client.VolumeGet()
 	if err != nil {
@@ -318,6 +338,8 @@ func (t *Task) AddRestoreReplica(replica string) error {
 	return nil
 }
 
+// checkRestoreReplicaSize get replica size with gRPC client, returns error if
+// replicaSize not equal to the given volumeSize
 func (t *Task) checkRestoreReplicaSize(address string, volumeSize int64) error {
 	replicaCli, err := replicaClient.NewReplicaClient(address)
 	if err != nil {
@@ -339,6 +361,8 @@ func (t *Task) checkRestoreReplicaSize(address string, volumeSize int64) error {
 	return nil
 }
 
+// VerifyRebuildReplica verified rebuild status with gRPC client for the given
+// address
 func (t *Task) VerifyRebuildReplica(address string) error {
 	if err := t.client.ReplicaVerifyRebuild(address); err != nil {
 		return err
@@ -346,6 +370,7 @@ func (t *Task) VerifyRebuildReplica(address string) error {
 	return nil
 }
 
+// AddReplica sync file to the new replica
 func (t *Task) AddReplica(replica string) error {
 	volume, err := t.client.VolumeGet()
 	if err != nil {
@@ -399,6 +424,8 @@ func (t *Task) AddReplica(replica string) error {
 	return nil
 }
 
+// checkAndResetFailedRebuild open replica for the given address and set
+// rebuilding
 func (t *Task) checkAndResetFailedRebuild(address string) error {
 	client, err := replicaClient.NewReplicaClient(address)
 	if err != nil {
@@ -425,6 +452,8 @@ func (t *Task) checkAndResetFailedRebuild(address string) error {
 	return nil
 }
 
+// checkAndExpandReplica checks the given volume size against the client
+// replica size and expand if its greater
 func (t *Task) checkAndExpandReplica(address string, size int64) error {
 	client, err := replicaClient.NewReplicaClient(address)
 	if err != nil {
@@ -440,6 +469,8 @@ func (t *Task) checkAndExpandReplica(address string, size int64) error {
 	if err != nil {
 		return err
 	}
+
+	
 	if replicaSize > size {
 		return fmt.Errorf("cannot add a larger replica to the engine")
 	} else if replicaSize < size {
@@ -462,6 +493,8 @@ func (t *Task) checkAndExpandReplica(address string, size int64) error {
 	return nil
 }
 
+// reloadAndVerify checks replica numbers, enables rebuilded replica and updates
+// the rebuilding to false
 func (t *Task) reloadAndVerify(address string, repClient *replicaClient.ReplicaClient) error {
 	_, err := repClient.ReloadReplica()
 	if err != nil {
@@ -478,6 +511,8 @@ func (t *Task) reloadAndVerify(address string, repClient *replicaClient.ReplicaC
 	return nil
 }
 
+// checkIfVolumeHeadExists ensures the "volume-head" not exist in the given
+// infoList
 func checkIfVolumeHeadExists(infoList []types.SyncFileInfo) bool {
 	// volume head has been synced by PrepareRebuild()
 	for _, info := range infoList {
@@ -488,6 +523,8 @@ func checkIfVolumeHeadExists(infoList []types.SyncFileInfo) bool {
 	return false
 }
 
+// getTransferClients returns a healthy replica as source and a WO replica as
+// the target
 func (t *Task) getTransferClients(address string) (
 	*replicaClient.ReplicaClient, *replicaClient.ReplicaClient, string, string, error) {
 	from, err := t.getFromReplica()
@@ -515,6 +552,7 @@ func (t *Task) getTransferClients(address string) (
 	return fromClient, toClient, from.Address, to.Address, nil
 }
 
+// getFromReplica return the first found good replica (RW)
 func (t *Task) getFromReplica() (*types.ControllerReplicaInfo, error) {
 	replicas, err := t.client.ReplicaList()
 	if err != nil {
@@ -530,6 +568,7 @@ func (t *Task) getFromReplica() (*types.ControllerReplicaInfo, error) {
 	return &types.ControllerReplicaInfo{}, fmt.Errorf("Failed to find good replica to copy from")
 }
 
+// getToReplica returns replica in WO for the given address
 func (t *Task) getToReplica(address string) (*types.ControllerReplicaInfo, error) {
 	replicas, err := t.client.ReplicaList()
 	if err != nil {
@@ -548,6 +587,8 @@ func (t *Task) getToReplica(address string) (*types.ControllerReplicaInfo, error
 	return &types.ControllerReplicaInfo{}, fmt.Errorf("Failed to find target replica to copy to")
 }
 
+// getNonBackingDisks returns object contains all replica maps to its name if 
+// its disk name is not the BackingFile
 func getNonBackingDisks(address string) (map[string]types.DiskInfo, error) {
 	repClient, err := replicaClient.NewReplicaClient(address)
 	if err != nil {
@@ -570,6 +611,8 @@ func getNonBackingDisks(address string) (map[string]types.DiskInfo, error) {
 	return disks, err
 }
 
+// GetSnapshotsInfo populates the DiskInfo mapping to the snapshot name, all
+// heads will be marked as volume-head
 func GetSnapshotsInfo(replicas []*types.ControllerReplicaInfo) (outputDisks map[string]types.DiskInfo, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "BUG: cannot get snapshot info")
@@ -638,6 +681,7 @@ func GetSnapshotsInfo(replicas []*types.ControllerReplicaInfo) (outputDisks map[
 	return outputDisks, nil
 }
 
+// StartWithReplicas Backend and Frontend Volumes streams
 func (t *Task) StartWithReplicas(replicas []string) error {
 	volume, err := t.client.VolumeGet()
 	if err != nil {
@@ -651,6 +695,8 @@ func (t *Task) StartWithReplicas(replicas []string) error {
 	return t.client.VolumeStart(replicas...)
 }
 
+// RebuildStatus returns replicaStatusMap contains all restoring replica for
+// its rebuilding status mapping to the replica address
 func (t *Task) RebuildStatus() (map[string]*ReplicaRebuildStatus, error) {
 	replicaStatusMap := make(map[string]*ReplicaRebuildStatus)
 
