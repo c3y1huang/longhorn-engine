@@ -118,6 +118,7 @@ func EmptyError() string {
 	return "must be non-empty"
 }
 
+// prefixEach add prefix to each message for the given list
 func prefixEach(msgs []string, prefix string) []string {
 	for i := range msgs {
 		msgs[i] = prefix + msgs[i]
