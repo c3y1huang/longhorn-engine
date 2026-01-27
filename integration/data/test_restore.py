@@ -516,6 +516,11 @@ def test_inc_restore_failure_invalid_block(
         grpc_fixed_dir_replica1, grpc_fixed_dir_replica2,
         backup_targets):  # NOQA
     # This case is for vfs backup only
+
+    # Matching the backoff in backupstore
+    BACKOFF_RETRY_COUNTS = 30  # up to 30 retries
+    BACKOFF_RETRY_INTERVAL = 20  # seconds, total up to 10 minutes
+
     for backup_target in backup_targets:
         if "vfs" in backup_target:
             break
@@ -565,7 +570,7 @@ def test_inc_restore_failure_invalid_block(
     cmd.backup_restore(dr_address, backup1)
     # restore status should contain the error info
     failed_restore, finished_restore = 0, 0
-    for i in range(RETRY_COUNTS):
+    for _ in range(BACKOFF_RETRY_COUNTS):
         failed_restore, finished_restore = 0, 0
         rs = cmd.restore_status(dr_address)
         for status in rs.values():
@@ -580,7 +585,7 @@ def test_inc_restore_failure_invalid_block(
                 finished_restore += 1
         if failed_restore == 2 and finished_restore == 2:
             break
-        time.sleep(RETRY_INTERVAL)
+        time.sleep(BACKOFF_RETRY_INTERVAL)
     assert failed_restore == 2 and finished_restore == 2
 
     assert path.exists(FIXED_REPLICA_PATH1 + delta_file)
